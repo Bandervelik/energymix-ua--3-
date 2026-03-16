@@ -1,0 +1,5 @@
+{
+  "name": "EnergyMix UA",
+  "description": "Гібридна Енергія - Розрахунок гібридних систем відновлюваної енергетики",
+  "requestFramePermissions": ["geolocation"]
+}
