@@ -14,22 +14,31 @@ export function Step2Equipment({
   setConfig: React.Dispatch<React.SetStateAction<SystemConfig>>,
   equipment: { 
     solar: number, solarTilt: number, solarAzimuth: number, solarLosses: number,
-    wind: number, windHubHeight: number,
-    hydro: number, hydroHead: number, hydroFlow: number,
-    battery: number, batteryDod: number
+    solarPanelPreset: string, solarPanelPower: number, solarPanelPrice: number,
+    solarPanelLength: number, solarPanelWidth: number, solarPanelsCount: number, solarCellType: string, solarTempCoeffPmax: number, solarDegradation: number,
+    windCount: number, windRotorDiameter: number, windHubHeight: number, windTsr: number, windCp: number,
+    windBladesCount: number, windBladePitch: number,
+    hydroCount: number, hydroTurbineType: string, hydroRunnerDiameter: number, hydroPenstockLength: number, hydroPenstockDiameter: number, hydroPenstockMaterial: string, hydroResidualFlow: number, hydroHead: number, hydroFlow: number,
+    batteryModulesCount: number, batteryModuleCapacity: number, battery: number, batteryDod: number
   },
   setEquipment: React.Dispatch<React.SetStateAction<{ 
     solar: number, solarTilt: number, solarAzimuth: number, solarLosses: number,
-    wind: number, windHubHeight: number,
-    hydro: number, hydroHead: number, hydroFlow: number,
-    battery: number, batteryDod: number
+    solarPanelPreset: string, solarPanelPower: number, solarPanelPrice: number,
+    solarPanelLength: number, solarPanelWidth: number, solarPanelsCount: number, solarCellType: string, solarTempCoeffPmax: number, solarDegradation: number,
+    windCount: number, windRotorDiameter: number, windHubHeight: number, windTsr: number, windCp: number,
+    windBladesCount: number, windBladePitch: number,
+    hydroCount: number, hydroTurbineType: string, hydroRunnerDiameter: number, hydroPenstockLength: number, hydroPenstockDiameter: number, hydroPenstockMaterial: string, hydroResidualFlow: number, hydroHead: number, hydroFlow: number,
+    batteryModulesCount: number, batteryModuleCapacity: number, battery: number, batteryDod: number
   }>>
 }) {
   const toggleConfig = (key: keyof SystemConfig) => {
     setConfig(prev => ({ ...prev, [key]: !prev[key] }));
   };
 
-  const [showAdvanced, setShowAdvanced] = useState(false);
+  const capex = (config.solar ? equipment.solarPanelsCount * (equipment.solarPanelPrice || 320) : 0) + 
+                (config.wind ? equipment.windCount * (Math.PI * Math.pow(equipment.windRotorDiameter / 2, 2)) * 300 : 0) +
+                (config.hydro ? equipment.hydroCount * (equipment.hydroRunnerDiameter * 10000) : 0) +
+                (config.battery ? equipment.battery * 400 : 0);
 
   return (
     <div className="space-y-8">
@@ -40,20 +49,12 @@ export function Step2Equipment({
             Оберіть джерела енергії та налаштуйте їх параметри.
           </p>
         </div>
-        
-        <label className="flex items-center gap-2 cursor-pointer">
-          <div className="relative">
-            <input 
-              type="checkbox" 
-              className="sr-only" 
-              checked={showAdvanced}
-              onChange={() => setShowAdvanced(!showAdvanced)}
-            />
-            <div className={`block w-10 h-6 rounded-full transition-colors ${showAdvanced ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-600'}`}></div>
-            <div className={`absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform ${showAdvanced ? 'transform translate-x-4' : ''}`}></div>
-          </div>
-          <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Pro Режим</span>
-        </label>
+        <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-4 flex flex-col items-end min-w-[200px]">
+          <span className="text-sm font-medium text-emerald-600 dark:text-emerald-400">Орієнтовна вартість</span>
+          <span className="text-2xl font-bold font-mono text-emerald-700 dark:text-emerald-300">
+            ${Math.round(capex).toLocaleString()}
+          </span>
+        </div>
       </div>
 
       <div className="bg-white dark:bg-slate-800/50 rounded-2xl p-6 border border-slate-200 dark:border-slate-700/50 shadow-sm backdrop-blur-xl space-y-4">
@@ -102,18 +103,59 @@ export function Step2Equipment({
             title="Сонячні панелі" 
             icon={Sun} 
             color="amber" 
-            value={equipment.solar} 
-            setValue={(v) => setEquipment(prev => ({ ...prev, solar: v }))} 
-            unit="кВт" 
-            max={100}
-            description="Загальна встановлена потужність фотоелектричної системи."
-            showAdvanced={showAdvanced}
-            advancedFields={[
-              { label: 'Кут нахилу (°)', value: equipment.solarTilt, onChange: (v) => setEquipment(prev => ({ ...prev, solarTilt: v })), min: 0, max: 90 },
-              { label: 'Азимут (°)', value: equipment.solarAzimuth, onChange: (v) => setEquipment(prev => ({ ...prev, solarAzimuth: v })), min: 0, max: 360 },
-              { label: 'Втрати системи (%)', value: equipment.solarLosses, onChange: (v) => setEquipment(prev => ({ ...prev, solarLosses: v })), min: 0, max: 50 },
+            value={equipment.solarPanelsCount} 
+            setValue={(v) => setEquipment(prev => ({ ...prev, solarPanelsCount: v, solar: (v * prev.solarPanelPower) / 1000 }))} 
+            unit="шт" 
+            max={200}
+            step={1}
+            mainLabel="Кількість панелей"
+            description="Загальна кількість сонячних панелей у вашій системі. Загальна потужність розраховується автоматично."
+            itemCost={equipment.solarPanelPrice || 320}
+            totalCost={equipment.solarPanelsCount * (equipment.solarPanelPrice || 320)}
+            parameters={[
+              { label: 'Кут нахилу (°)', value: equipment.solarTilt, onChange: (v: any) => setEquipment(prev => ({ ...prev, solarTilt: v })), min: 0, max: 90, helpText: 'Оптимальний кут для України 30-35°. Можна знайти в проектній документації або виміряти кутоміром.' },
+              { label: 'Азимут (°)', value: equipment.solarAzimuth, onChange: (v: any) => setEquipment(prev => ({ ...prev, solarAzimuth: v })), min: 0, max: 360, helpText: '180° - це чистий південь. 90° - схід, 270° - захід. Використовуйте компас у смартфоні.' },
+              { label: 'Втрати системи (%)', value: equipment.solarLosses, onChange: (v: any) => setEquipment(prev => ({ ...prev, solarLosses: v })), min: 0, max: 50, helpText: 'Включають втрати в інверторі, кабелях та від пилу. Типове значення 14-18%.' },
             ]}
-          />
+            advancedFields={[
+              ...(equipment.solarPanelPreset === 'custom' ? [
+                { label: 'Ціна панелі ($)', value: equipment.solarPanelPrice || 320, onChange: (v: any) => setEquipment(prev => ({ ...prev, solarPanelPrice: v })), min: 10, max: 2000, step: 1, helpText: 'Вартість однієї сонячної панелі.' },
+                { label: 'Потужність панелі (Вт)', value: equipment.solarPanelPower, onChange: (v: any) => setEquipment(prev => ({ ...prev, solarPanelPower: v, solar: (prev.solarPanelsCount * v) / 1000 })), min: 100, max: 1000, step: 5, helpText: 'Номінальна потужність однієї панелі.' },
+                { label: 'Довжина модуля (мм)', value: equipment.solarPanelLength, onChange: (v: any) => setEquipment(prev => ({ ...prev, solarPanelLength: v })), min: 500, max: 3000, step: 10, helpText: 'Розміри однієї панелі в міліметрах. Вказані в паспорті (Datasheet) панелі.' },
+                { label: 'Ширина модуля (мм)', value: equipment.solarPanelWidth, onChange: (v: any) => setEquipment(prev => ({ ...prev, solarPanelWidth: v })), min: 500, max: 2000, step: 10, helpText: 'Розміри однієї панелі в міліметрах. Вказані в паспорті (Datasheet) панелі.' },
+                { label: 'Тип комірки', value: equipment.solarCellType, onChange: (v: any) => setEquipment(prev => ({ ...prev, solarCellType: v })), type: 'select' as 'select', options: [{value: 'mono', label: 'Монокристалічні'}, {value: 'poly', label: 'Полікристалічні'}, {value: 'thin-film', label: 'Тонкоплівкові'}], helpText: 'Моно- або полікристалічні. Вказано на етикетці панелі.' },
+                { label: 'Темп. коефіцієнт (%/°C)', value: equipment.solarTempCoeffPmax, onChange: (v: any) => setEquipment(prev => ({ ...prev, solarTempCoeffPmax: v })), min: -1, max: 0, step: 0.01, helpText: 'Втрата потужності при нагріванні. Типово -0.3% до -0.5% на градус. Вказано в паспорті.' },
+                { label: 'Деградація (%/рік)', value: equipment.solarDegradation, onChange: (v: any) => setEquipment(prev => ({ ...prev, solarDegradation: v })), min: 0, max: 5, step: 0.1, helpText: 'Щорічне зниження ефективності. Типово 0.5% на рік для якісних панелей.' },
+              ] : [])
+            ]}
+          >
+            <div className="pt-4 border-t border-slate-100 dark:border-slate-700/50 space-y-3">
+              <div className="flex items-center justify-between mt-2">
+                <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Модель панелі</label>
+                <span className="text-xs font-medium text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-1 rounded-md">
+                  Загальна потужність: {equipment.solar.toFixed(1)} кВт
+                </span>
+              </div>
+              <select
+                value={equipment.solarPanelPreset}
+                onChange={(e) => {
+                  const preset = e.target.value;
+                  if (preset === 'standard-400w') {
+                    setEquipment(prev => ({ ...prev, solarPanelPreset: preset, solarPanelPower: 400, solarPanelPrice: 320, solarPanelLength: 1700, solarPanelWidth: 1100, solarCellType: 'mono', solarTempCoeffPmax: -0.35, solarDegradation: 0.5, solar: (prev.solarPanelsCount * 400) / 1000 }));
+                  } else if (preset === 'premium-550w') {
+                    setEquipment(prev => ({ ...prev, solarPanelPreset: preset, solarPanelPower: 550, solarPanelPrice: 440, solarPanelLength: 2200, solarPanelWidth: 1100, solarCellType: 'mono', solarTempCoeffPmax: -0.30, solarDegradation: 0.4, solar: (prev.solarPanelsCount * 550) / 1000 }));
+                  } else {
+                    setEquipment(prev => ({ ...prev, solarPanelPreset: preset }));
+                  }
+                }}
+                className="w-full p-2.5 text-sm bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-all"
+              >
+                <option value="standard-400w">Стандартна (400 Вт, 1700x1100мм)</option>
+                <option value="premium-550w">Преміум (550 Вт, 2200x1100мм)</option>
+                <option value="custom">Своя конфігурація</option>
+              </select>
+            </div>
+          </ConfigCard>
         )}
         
         {config.wind && (
@@ -121,14 +163,22 @@ export function Step2Equipment({
             title="Вітрові турбіни" 
             icon={Wind} 
             color="blue" 
-            value={equipment.wind} 
-            setValue={(v) => setEquipment(prev => ({ ...prev, wind: v }))} 
-            unit="кВт" 
-            max={50}
-            description="Номінальна потужність вітрогенератора."
-            showAdvanced={showAdvanced}
+            value={equipment.windCount} 
+            setValue={(v) => setEquipment(prev => ({ ...prev, windCount: v }))} 
+            unit="шт" 
+            max={10}
+            step={1}
+            mainLabel="Кількість турбін"
+            description="Кількість вітрогенераторів у вашій системі."
+            itemCost={Math.PI * Math.pow(equipment.windRotorDiameter / 2, 2) * 300}
+            totalCost={equipment.windCount * Math.PI * Math.pow(equipment.windRotorDiameter / 2, 2) * 300}
             advancedFields={[
-              { label: 'Висота щогли (м)', value: equipment.windHubHeight, onChange: (v) => setEquipment(prev => ({ ...prev, windHubHeight: v })), min: 10, max: 100 },
+              { label: 'Діаметр ротора (м)', value: equipment.windRotorDiameter, onChange: (v: any) => setEquipment(prev => ({ ...prev, windRotorDiameter: v })), min: 1, max: 50, step: 0.5, helpText: 'Діаметр ротора визначає площу обмітання та кількість енергії, яку може перехопити турбіна.' },
+              { label: 'Висота щогли (м)', value: equipment.windHubHeight, onChange: (v: any) => setEquipment(prev => ({ ...prev, windHubHeight: v })), min: 10, max: 100, helpText: 'Висота від землі до центру ротора. Чим вище, тим стабільніший вітер.' },
+              { label: 'TSR (Коеф. швидкохідності)', value: equipment.windTsr, onChange: (v: any) => setEquipment(prev => ({ ...prev, windTsr: v })), min: 1, max: 15, step: 0.1, helpText: 'Відношення швидкості кінчика лопаті до швидкості вітру. Для 3-лопатевих типово 6-7.' },
+              { label: 'Коефіцієнт потужності (Cp)', value: equipment.windCp, onChange: (v: any) => setEquipment(prev => ({ ...prev, windCp: v })), min: 0.1, max: 0.59, step: 0.01, helpText: 'Ефективність перетворення енергії вітру. Максимум (ліміт Бетца) - 0.59. Типово 0.3-0.45.' },
+              { label: 'Кількість лопатей', value: equipment.windBladesCount, onChange: (v: any) => setEquipment(prev => ({ ...prev, windBladesCount: v })), min: 1, max: 12, helpText: 'Кількість лопатей крильчатки. Найбільш поширені 3-лопатеві турбіни.' },
+              { label: 'Кут атаки лопаті (°)', value: equipment.windBladePitch, onChange: (v: any) => setEquipment(prev => ({ ...prev, windBladePitch: v })), min: -5, max: 90, step: 0.5, helpText: 'Кут нахилу лопатей відносно площини обертання. Впливає на пусковий момент та ефективність.' },
             ]}
           />
         )}
@@ -138,15 +188,24 @@ export function Step2Equipment({
             title="Мала ГЕС" 
             icon={Droplet} 
             color="sky" 
-            value={equipment.hydro} 
-            setValue={(v) => setEquipment(prev => ({ ...prev, hydro: v }))} 
-            unit="кВт" 
-            max={200}
-            description="Очікувана потужність гідротурбіни."
-            showAdvanced={showAdvanced}
+            value={equipment.hydroCount} 
+            setValue={(v) => setEquipment(prev => ({ ...prev, hydroCount: v }))} 
+            unit="шт" 
+            max={5}
+            step={1}
+            mainLabel="Кількість турбін"
+            description="Кількість гідротурбін у вашій системі."
+            itemCost={equipment.hydroRunnerDiameter * 10000}
+            totalCost={equipment.hydroCount * equipment.hydroRunnerDiameter * 10000}
             advancedFields={[
-              { label: 'Перепад висот (м)', value: equipment.hydroHead, onChange: (v) => setEquipment(prev => ({ ...prev, hydroHead: v })), min: 1, max: 100 },
-              { label: 'Витрата води (л/с)', value: equipment.hydroFlow, onChange: (v) => setEquipment(prev => ({ ...prev, hydroFlow: v })), min: 1, max: 1000 },
+              { label: 'Діаметр колеса (мм)', value: Math.round(equipment.hydroRunnerDiameter * 1000), onChange: (v: any) => setEquipment(prev => ({ ...prev, hydroRunnerDiameter: v / 1000 })), min: 100, max: 5000, step: 10, helpText: 'Діаметр робочого колеса використовується для масштабування гідростанції.' },
+              { label: 'Тип турбіни', value: equipment.hydroTurbineType, onChange: (v: any) => setEquipment(prev => ({ ...prev, hydroTurbineType: v })), type: 'select' as 'select', options: [{value: 'pelton', label: 'Пелтона'}, {value: 'kaplan', label: 'Каплана'}, {value: 'francis', label: 'Френсіса'}], helpText: 'Пелтона для високого напору, Каплана для низького, Френсіса для середнього.' },
+              { label: 'Перепад висот (м)', value: equipment.hydroHead, onChange: (v: any) => setEquipment(prev => ({ ...prev, hydroHead: v })), min: 1, max: 500, helpText: 'Вертикальна відстань від місця забору до турбіни. Вимірюється нівеліром або GPS.' },
+              { label: 'Витрата води (л/с)', value: equipment.hydroFlow, onChange: (v: any) => setEquipment(prev => ({ ...prev, hydroFlow: v })), min: 1, max: 10000, helpText: 'Об\'єм води за секунду. Можна виміряти методом поплавка або заповненням ємності.' },
+              { label: 'Екологічний стік (л/с)', value: equipment.hydroResidualFlow, onChange: (v: any) => setEquipment(prev => ({ ...prev, hydroResidualFlow: v })), min: 0, max: 1000, helpText: 'Мінімальна кількість води, що має залишатися в річці за законом.' },
+              { label: 'Довжина труби (м)', value: equipment.hydroPenstockLength, onChange: (v: any) => setEquipment(prev => ({ ...prev, hydroPenstockLength: v })), min: 1, max: 5000, helpText: 'Параметри напірного трубопроводу. Впливають на втрати тиску.' },
+              { label: 'Діаметр труби (мм)', value: Math.round(equipment.hydroPenstockDiameter * 1000), onChange: (v: any) => setEquipment(prev => ({ ...prev, hydroPenstockDiameter: v / 1000 })), min: 10, max: 5000, step: 1, helpText: 'Внутрішній діаметр напірного трубопроводу. Впливає на швидкість потоку та втрати на тертя.' },
+              { label: 'Матеріал труби', value: equipment.hydroPenstockMaterial, onChange: (v: any) => setEquipment(prev => ({ ...prev, hydroPenstockMaterial: v })), type: 'select' as 'select', options: [{value: 'pvc', label: 'ПВХ'}, {value: 'steel', label: 'Сталь'}, {value: 'concrete', label: 'Бетон'}], helpText: 'Шорсткість матеріалу впливає на тертя води. ПВХ має найменший опір.' },
             ]}
           />
         )}
@@ -156,16 +215,27 @@ export function Step2Equipment({
             title="Акумуляторна система" 
             icon={Battery} 
             color="emerald" 
-            value={equipment.battery} 
-            setValue={(v) => setEquipment(prev => ({ ...prev, battery: v }))} 
-            unit="кВт·год" 
-            max={100}
-            description="Корисна ємність системи зберігання енергії (BESS)."
-            showAdvanced={showAdvanced}
+            value={equipment.batteryModulesCount} 
+            setValue={(v) => setEquipment(prev => ({ ...prev, batteryModulesCount: v, battery: v * equipment.batteryModuleCapacity }))} 
+            unit="шт" 
+            max={40}
+            step={1}
+            mainLabel="Кількість модулів"
+            description="Кількість акумуляторних блоків у системі."
+            itemCost={equipment.batteryModuleCapacity * 400}
+            totalCost={equipment.battery * 400}
             advancedFields={[
-              { label: 'Глибина розряду (%)', value: equipment.batteryDod, onChange: (v) => setEquipment(prev => ({ ...prev, batteryDod: v })), min: 10, max: 100 },
+              { label: 'Ємність 1 модуля (кВт·год)', value: equipment.batteryModuleCapacity, onChange: (v: any) => setEquipment(prev => ({ ...prev, batteryModuleCapacity: v, battery: prev.batteryModulesCount * v })), min: 1, max: 20, step: 0.5, helpText: 'Ємність одного акумуляторного блоку.' },
+              { label: 'Глибина розряду (%)', value: equipment.batteryDod, onChange: (v: any) => setEquipment(prev => ({ ...prev, batteryDod: v })), min: 10, max: 100, helpText: 'Відсоток ємності, який можна використовувати. Для LiFePO4 типово 80-90%, для свинцевих 50%.' },
             ]}
-          />
+          >
+            <div className="pt-4 border-t border-slate-100 dark:border-slate-700/50 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-slate-600 dark:text-slate-400">Загальна ємність:</span>
+                <span className="font-mono font-medium text-slate-900 dark:text-white">{equipment.battery} кВт·год</span>
+              </div>
+            </div>
+          </ConfigCard>
         )}
         
         {!config.solar && !config.wind && !config.hydro && !config.battery && (
@@ -230,8 +300,13 @@ function ConfigCard({
   unit, 
   max,
   description,
-  showAdvanced = false,
-  advancedFields = []
+  mainLabel = "Потужність",
+  step = 1,
+  parameters = [],
+  advancedFields = [],
+  itemCost,
+  totalCost,
+  children
 }: { 
   title: string; 
   icon: any; 
@@ -241,8 +316,33 @@ function ConfigCard({
   unit: string; 
   max: number;
   description: string;
-  showAdvanced?: boolean;
-  advancedFields?: { label: string, value: number, onChange: (v: number) => void, min: number, max: number }[];
+  mainLabel?: string;
+  step?: number;
+  itemCost?: number;
+  totalCost?: number;
+  parameters?: { 
+    label: string, 
+    value: number | string, 
+    onChange: (v: any) => void, 
+    type?: 'number' | 'select',
+    options?: { value: string, label: string }[],
+    min?: number, 
+    max?: number,
+    step?: number,
+    helpText?: string
+  }[];
+  advancedFields?: { 
+    label: string, 
+    value: number | string, 
+    onChange: (v: any) => void, 
+    type?: 'number' | 'select',
+    options?: { value: string, label: string }[],
+    min?: number, 
+    max?: number,
+    step?: number,
+    helpText?: string
+  }[];
+  children?: React.ReactNode;
 }) {
   const colorMap = {
     amber: 'text-amber-500 bg-amber-500/10 border-amber-500/20 focus:ring-amber-500',
@@ -259,7 +359,7 @@ function ConfigCard({
   };
 
   return (
-    <div className="bg-white dark:bg-slate-800/50 rounded-2xl p-6 border border-slate-200 dark:border-slate-700/50 shadow-sm backdrop-blur-xl flex flex-col gap-6">
+    <div className="relative group/card bg-white dark:bg-slate-800/50 rounded-2xl p-6 border border-slate-200 dark:border-slate-700/50 shadow-sm backdrop-blur-xl flex flex-col gap-6 hover:z-50 transition-all duration-200">
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-3">
           <div className={`p-3 rounded-xl ${colorMap[color].split(' ')[1]}`}>
@@ -267,27 +367,50 @@ function ConfigCard({
           </div>
           <div>
             <h3 className="font-semibold text-slate-900 dark:text-white">{title}</h3>
-            <p className="text-sm text-slate-500 dark:text-slate-400">Налаштування потужності</p>
+            <p className="text-sm text-slate-500 dark:text-slate-400">Налаштування обладнання</p>
           </div>
         </div>
-        <div className="group relative">
-          <Info className="w-5 h-5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-help" />
-          <div className="absolute right-0 w-48 p-2 mt-2 text-xs text-white bg-slate-800 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
-            {description}
+        {totalCost !== undefined && (
+          <div className="text-right">
+            <div className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-0.5">Загальна вартість</div>
+            <div className={`font-mono font-bold text-lg ${colorMap[color].split(' ')[0]}`}>
+              ${Math.round(totalCost).toLocaleString()}
+            </div>
+            {itemCost !== undefined && (
+              <div className="text-[10px] text-slate-400 mt-0.5">
+                ${Math.round(itemCost).toLocaleString()} / {unit}
+              </div>
+            )}
           </div>
-        </div>
+        )}
       </div>
 
       <div className="space-y-4">
         <div className="flex justify-between items-end">
-          <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
-            Потужність
-          </label>
+          <div className="flex items-center gap-1.5">
+            <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
+              {mainLabel}
+            </label>
+            <div className="group relative">
+              <Info className="w-3.5 h-3.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-help" />
+              <div className="absolute left-0 bottom-full mb-2 w-56 p-2.5 text-[11px] leading-normal text-white bg-slate-900 dark:bg-slate-800 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 shadow-xl border border-slate-700">
+                {description}
+                <div className="absolute top-full left-2 -mt-1 border-4 border-transparent border-t-slate-900 dark:border-t-slate-800"></div>
+              </div>
+            </div>
+          </div>
           <div className="flex items-baseline gap-1">
             <input 
               type="number" 
               value={value}
-              onChange={(e) => setValue(Number(e.target.value))}
+              step={step || 1}
+              onChange={(e) => {
+                let val = Number(e.target.value);
+                if (Number.isInteger(step || 1)) {
+                  val = Math.round(val);
+                }
+                setValue(val);
+              }}
               className="w-20 text-right font-mono text-xl font-bold bg-transparent border-b-2 border-slate-200 dark:border-slate-700 focus:border-emerald-500 focus:outline-none text-slate-900 dark:text-white pb-1"
             />
             <span className="text-slate-500 font-medium">{unit}</span>
@@ -298,48 +421,130 @@ function ConfigCard({
           type="range" 
           min="0" 
           max={max} 
-          step="0.5"
+          step={step || 1}
           value={value}
-          onChange={(e) => setValue(Number(e.target.value))}
+          onChange={(e) => {
+            let val = Number(e.target.value);
+            if (Number.isInteger(step || 1)) {
+              val = Math.round(val);
+            }
+            setValue(val);
+          }}
           className={`w-full h-2 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer ${sliderColorMap[color]}`}
         />
         <div className="flex justify-between text-xs text-slate-400 font-mono">
           <span>0 {unit}</span>
           <span>{max} {unit}</span>
         </div>
+        
+        {itemCost !== undefined && (
+          <div className="flex justify-between items-center bg-slate-50 dark:bg-slate-900/50 p-3 rounded-xl border border-slate-100 dark:border-slate-800">
+            <span className="text-sm text-slate-600 dark:text-slate-400">Вартість 1 одиниці:</span>
+            <span className="font-mono font-medium text-slate-900 dark:text-white">${Math.round(itemCost).toLocaleString()}</span>
+          </div>
+        )}
       </div>
 
-      <div className="pt-4 border-t border-slate-100 dark:border-slate-700/50">
-        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-          Модель / Тип (Опціонально)
-        </label>
-        <select className="w-full p-3 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-all">
-          <option value="">Стандартна модель (Усереднені дані)</option>
-          <option value="premium">Преміум (Висока ефективність)</option>
-          <option value="budget">Бюджетна (Оптимальна ціна)</option>
-        </select>
-      </div>
+      {children}
 
-      {showAdvanced && advancedFields.length > 0 && (
+      {parameters && parameters.length > 0 && (
         <div className="pt-4 border-t border-slate-100 dark:border-slate-700/50 space-y-4">
           <h4 className="text-sm font-semibold text-slate-900 dark:text-white flex items-center gap-2">
             <Settings className="w-4 h-4 text-slate-400" />
-            Розширені параметри
+            Параметри встановлення
+          </h4>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {parameters.map((field, idx) => (
+              <div key={idx} className="space-y-1">
+                <div className="flex items-center gap-1.5 mb-1">
+                  <label className="text-xs font-medium text-slate-500 dark:text-slate-400">
+                    {field.label}
+                  </label>
+                  {field.helpText && (
+                    <div className="group relative">
+                      <div className="w-3.5 h-3.5 rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-[10px] font-bold text-slate-400 cursor-help hover:text-emerald-500 hover:border-emerald-500/50 transition-colors">
+                        i
+                      </div>
+                      <div className="absolute left-0 bottom-full mb-2 w-56 p-2.5 text-[11px] leading-normal text-white bg-slate-900 dark:bg-slate-800 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 shadow-xl border border-slate-700">
+                        {field.helpText}
+                        <div className="absolute top-full left-2 -mt-1 border-4 border-transparent border-t-slate-900 dark:border-t-slate-800"></div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+                {field.type === 'select' ? (
+                  <select
+                    value={field.value}
+                    onChange={(e) => field.onChange(e.target.value)}
+                    className="w-full p-2 text-sm bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-all"
+                  >
+                    {field.options?.map(opt => (
+                      <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    ))}
+                  </select>
+                ) : (
+                  <input 
+                    type="number" 
+                    value={field.value}
+                    onChange={(e) => field.onChange(Number(e.target.value))}
+                    min={field.min}
+                    max={field.max}
+                    step={field.step || 1}
+                    className="w-full p-2 text-sm bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-all"
+                  />
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {advancedFields && advancedFields.length > 0 && (
+        <div className="pt-4 border-t border-slate-100 dark:border-slate-700/50 space-y-4">
+          <h4 className="text-sm font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+            <Settings className="w-4 h-4 text-slate-400" />
+            Розширені параметри обладнання
           </h4>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {advancedFields.map((field, idx) => (
               <div key={idx} className="space-y-1">
-                <label className="text-xs font-medium text-slate-500 dark:text-slate-400">
-                  {field.label}
-                </label>
-                <input 
-                  type="number" 
-                  value={field.value}
-                  onChange={(e) => field.onChange(Number(e.target.value))}
-                  min={field.min}
-                  max={field.max}
-                  className="w-full p-2 text-sm bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-all"
-                />
+                <div className="flex items-center gap-1.5 mb-1">
+                  <label className="text-xs font-medium text-slate-500 dark:text-slate-400">
+                    {field.label}
+                  </label>
+                  {field.helpText && (
+                    <div className="group relative">
+                      <div className="w-3.5 h-3.5 rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-[10px] font-bold text-slate-400 cursor-help hover:text-emerald-500 hover:border-emerald-500/50 transition-colors">
+                        i
+                      </div>
+                      <div className="absolute left-0 bottom-full mb-2 w-56 p-2.5 text-[11px] leading-normal text-white bg-slate-900 dark:bg-slate-800 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 shadow-xl border border-slate-700">
+                        {field.helpText}
+                        <div className="absolute top-full left-2 -mt-1 border-4 border-transparent border-t-slate-900 dark:border-t-slate-800"></div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+                {field.type === 'select' ? (
+                  <select
+                    value={field.value}
+                    onChange={(e) => field.onChange(e.target.value)}
+                    className="w-full p-2 text-sm bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-all"
+                  >
+                    {field.options?.map(opt => (
+                      <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    ))}
+                  </select>
+                ) : (
+                  <input 
+                    type="number" 
+                    value={field.value}
+                    onChange={(e) => field.onChange(Number(e.target.value))}
+                    min={field.min}
+                    max={field.max}
+                    step={field.step || 1}
+                    className="w-full p-2 text-sm bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-all"
+                  />
+                )}
               </div>
             ))}
           </div>

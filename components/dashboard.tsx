@@ -35,7 +35,8 @@ export function Dashboard() {
   const [mounted, setMounted] = useState(false);
   
   useEffect(() => {
-    setMounted(true);
+    const timer = setTimeout(() => setMounted(true), 0);
+    return () => clearTimeout(timer);
   }, []);
   
   const [config, setConfig] = useState<SystemConfig>({
@@ -48,24 +49,51 @@ export function Dashboard() {
   // Lifted state for steps
   const [location, setLocation] = useState({
     address: 'Київ, Україна',
-    coordinates: [50.4501, 30.5234] as [number, number]
+    coordinates: [50.4501, 30.5234] as [number, number],
+    installationSite: ''
   });
   const [equipment, setEquipment] = useState({
-    solar: 10,
+    solar: 8,
     solarTilt: 35,
     solarAzimuth: 180,
     solarLosses: 14,
-    wind: 5,
+    solarPanelPreset: 'standard-400w',
+    solarPanelPower: 400,
+    solarPanelPrice: 320,
+    solarPanelLength: 1700,
+    solarPanelWidth: 1100,
+    solarPanelsCount: 20,
+    solarCellType: 'mono',
+    solarTempCoeffPmax: -0.35,
+    solarDegradation: 0.5,
+    
+    windCount: 1,
+    windRotorDiameter: 3,
     windHubHeight: 15,
-    hydro: 15,
+    windTsr: 6,
+    windCp: 0.4,
+    windBladesCount: 3,
+    windBladePitch: 0,
+    
+    hydroCount: 1,
+    hydroTurbineType: 'pelton',
+    hydroRunnerDiameter: 0.5,
+    hydroPenstockLength: 100,
+    hydroPenstockDiameter: 0.3,
+    hydroPenstockMaterial: 'pvc',
+    hydroResidualFlow: 5,
     hydroHead: 10,
     hydroFlow: 25,
+    
+    batteryModulesCount: 4,
+    batteryModuleCapacity: 5,
     battery: 20,
     batteryDod: 80,
   });
   const [consumption, setConsumption] = useState({
     annual: 12000,
     profileType: 'residential',
+    customProfile: Array(24).fill(1.5), // Default 1.5 kW for all hours
   });
   const [climateData, setClimateData] = useState({
     solar: 1150,
@@ -146,7 +174,7 @@ export function Dashboard() {
                 {currentStep === 2 && <Step2Equipment config={config} setConfig={setConfig} equipment={equipment} setEquipment={setEquipment} />}
                 {currentStep === 3 && <Step3Consumption consumption={consumption} setConsumption={setConsumption} />}
                 {currentStep === 4 && <Step4Results config={config} equipment={equipment} consumption={consumption} climateData={climateData} />}
-                {currentStep === 5 && <Step5Report config={config} equipment={equipment} consumption={consumption} location={location} />}
+                {currentStep === 5 && <Step5Report config={config} equipment={equipment} consumption={consumption} location={location} climateData={climateData} />}
               </motion.div>
             </AnimatePresence>
 

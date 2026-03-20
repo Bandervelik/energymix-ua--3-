@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { MapPin, Search, Cloud, Sun, Wind, Droplet, Loader2, Navigation } from 'lucide-react';
+import { MapPin, Search, Cloud, Sun, Wind, Droplet, Loader2, Navigation, Info } from 'lucide-react';
 import { motion } from 'motion/react';
 import dynamic from 'next/dynamic';
 
@@ -20,8 +20,8 @@ export function Step1Location({
   climateData,
   setClimateData
 }: { 
-  location: { address: string, coordinates: [number, number] }, 
-  setLocation: React.Dispatch<React.SetStateAction<{ address: string, coordinates: [number, number] }>>,
+  location: { address: string, coordinates: [number, number], installationSite: string }, 
+  setLocation: React.Dispatch<React.SetStateAction<{ address: string, coordinates: [number, number], installationSite: string }>>,
   climateData: { solar: number, wind: number, precipitation: number, isLoading: boolean },
   setClimateData: React.Dispatch<React.SetStateAction<{ solar: number, wind: number, precipitation: number, isLoading: boolean }>>
 }) {
@@ -55,7 +55,11 @@ export function Step1Location({
       if (searchQuery && searchQuery !== location.address && showSuggestions) {
         setIsSearching(true);
         try {
-          const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}&limit=5&accept-language=uk`);
+          const res = await fetch(`/api/geocode?q=${encodeURIComponent(searchQuery)}`);
+          if (!res.ok) {
+            const errData = await res.json().catch(() => ({}));
+            throw new Error(errData.error || `Network response was not ok: ${res.status}`);
+          }
           const data = await res.json();
           setSuggestions(data);
         } catch (error) {
@@ -80,7 +84,11 @@ export function Step1Location({
     
     const fetchAddress = async () => {
       try {
-        const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${location.coordinates[0]}&lon=${location.coordinates[1]}&accept-language=uk`);
+        const res = await fetch(`/api/geocode?lat=${location.coordinates[0]}&lon=${location.coordinates[1]}`);
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.error || `Network response was not ok: ${res.status}`);
+        }
         const data = await res.json();
         if (data && data.display_name) {
           setSearchQuery(data.display_name);
@@ -135,7 +143,7 @@ export function Step1Location({
     
     const timeout = setTimeout(fetchClimate, 1000);
     return () => clearTimeout(timeout);
-  }, [location.coordinates]);
+  }, [location.coordinates, setClimateData]);
 
   const handleSelectSuggestion = (suggestion: any) => {
     isFromSearch.current = true;
@@ -143,7 +151,7 @@ export function Step1Location({
     const newCoords: [number, number] = [parseFloat(suggestion.lat), parseFloat(suggestion.lon)];
     
     setSearchQuery(newAddress);
-    setLocation({ address: newAddress, coordinates: newCoords });
+    setLocation(prev => ({ ...prev, address: newAddress, coordinates: newCoords }));
     setShowSuggestions(false);
   };
 
@@ -184,7 +192,7 @@ export function Step1Location({
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Search & Map */}
         <div className="lg:col-span-2 space-y-6 flex flex-col">
-          <div className="relative z-10 bg-white dark:bg-slate-800/50 rounded-2xl p-6 border border-slate-200 dark:border-slate-700/50 shadow-sm backdrop-blur-xl">
+          <div className="relative z-10 bg-white dark:bg-slate-800/50 rounded-2xl p-6 border border-slate-200 dark:border-slate-700/50 shadow-sm backdrop-blur-xl hover:z-20 transition-all duration-200">
             <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
               Пошук адреси або координат
             </label>
@@ -242,6 +250,33 @@ export function Step1Location({
                   )}
                 </div>
               )}
+            </div>
+
+            <div className="mt-6 pt-6 border-t border-slate-100 dark:border-slate-700/50">
+              <div className="flex items-center gap-2 mb-2">
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+                  Місце установки (Опціонально)
+                </label>
+                <div className="group relative">
+                  <Info className="w-4 h-4 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-help" />
+                  <div className="absolute left-0 bottom-full mb-2 w-64 p-3 text-xs leading-relaxed text-white bg-slate-900 dark:bg-slate-700 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 shadow-xl border border-slate-700 dark:border-slate-600">
+                    Вкажіть конкретне місце монтажу (наприклад, &apos;дах будинку&apos;, &apos;наземна конструкція&apos;, &apos;балкон&apos;). Це допоможе точніше оцінити умови затінення та вітрового навантаження.
+                    <div className="absolute top-full left-2 -mt-1 border-4 border-transparent border-t-slate-900 dark:border-t-slate-700"></div>
+                  </div>
+                </div>
+              </div>
+              <div className="relative">
+                <input
+                  type="text"
+                  className="block w-full px-4 py-3 border border-slate-200 dark:border-slate-600 rounded-xl bg-slate-50 dark:bg-slate-900/50 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all"
+                  placeholder="Наприклад: балкон, дах гаража, дах будинку..."
+                  value={location.installationSite}
+                  onChange={(e) => setLocation(prev => ({ ...prev, installationSite: e.target.value }))}
+                />
+                <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                  Вкажіть, де саме планується монтаж обладнання.
+                </p>
+              </div>
             </div>
           </div>
 
