@@ -6,6 +6,7 @@ import { motion } from 'motion/react';
 import { SystemConfig } from '../dashboard';
 import * as htmlToImage from 'html-to-image';
 import jsPDF from 'jspdf';
+import { formatPayback } from '@/lib/utils';
 
 export function Step5Report({ 
   config, 
@@ -142,7 +143,7 @@ export function Step5Report({
     }
   }
   
-  const payback = paybackYears > 0 ? paybackYears.toFixed(1) : '>20';
+  const payback = formatPayback(paybackYears);
 
   const handleDownloadPDF = async () => {
     if (!reportRef.current) return;
@@ -185,77 +186,26 @@ export function Step5Report({
     }
   };
 
-  const handleDownloadCSV = () => {
-    const headers = ['Параметр', 'Значення'];
-    const rows = [
-      ['Локація', `"${location.address}"`],
-      ['Координати', `"${location.coordinates[0]}, ${location.coordinates[1]}"`],
-      ['Місце установки', `"${location.installationSite || 'Не вказано'}"`],
-      ['Сонячні панелі (кВт)', config.solar ? equipment.solar : 0],
-      ...(config.solar ? [
-        ['Кількість панелей (шт)', equipment.solarPanelsCount],
-        ['Потужність панелі (Вт)', equipment.solarPanelPower],
-        ['Ціна панелі ($)', equipment.solarPanelPrice || 320],
-        ['Кут нахилу СЕС (°)', equipment.solarTilt],
-        ['Азимут СЕС (°)', equipment.solarAzimuth],
-        ['Втрати СЕС (%)', equipment.solarLosses],
-        ['Довжина модуля (мм)', equipment.solarPanelLength],
-        ['Ширина модуля (мм)', equipment.solarPanelWidth],
-        ['Тип комірки', equipment.solarCellType],
-        ['Темп. коефіцієнт (%/°C)', equipment.solarTempCoeffPmax],
-        ['Деградація (%/рік)', equipment.solarDegradation]
-      ] : []),
-      ['Вітрові турбіни (Діаметр ротора, м)', config.wind ? equipment.windRotorDiameter : 0],
-      ...(config.wind ? [
-        ['Кількість турбін (шт)', equipment.windCount],
-        ['Висота щогли ВЕС (м)', equipment.windHubHeight],
-        ['TSR ВЕС', equipment.windTsr],
-        ['Коефіцієнт потужності Cp', equipment.windCp]
-      ] : []),
-      ['Малі ГЕС (Діаметр колеса, м)', config.hydro ? equipment.hydroRunnerDiameter : 0],
-      ...(config.hydro ? [
-        ['Кількість турбін (шт)', equipment.hydroCount],
-        ['Тип турбіни', equipment.hydroTurbineType],
-        ['Перепад висот ГЕС (м)', equipment.hydroHead],
-        ['Витрата води ГЕС (л/с)', equipment.hydroFlow],
-        ['Екологічний стік (л/с)', equipment.hydroResidualFlow],
-        ['Довжина труби (м)', equipment.hydroPenstockLength],
-        ['Діаметр труби (м)', equipment.hydroPenstockDiameter],
-        ['Матеріал труби', equipment.hydroPenstockMaterial]
-      ] : []),
-      ['Акумулятори (кВт·год)', config.battery ? equipment.battery : 0],
-      ...(config.battery ? [
-        ['Кількість модулів (шт)', equipment.batteryModulesCount],
-        ['Ємність 1 модуля (кВт·год)', equipment.batteryModuleCapacity],
-        ['Глибина розряду АКБ (%)', equipment.batteryDod]
-      ] : []),
-      ['Річне споживання (кВт·год)', consumption.annual],
-      ['Тип профілю', 
-        consumption.profileType === 'residential' ? 'Побутовий' : 
-        consumption.profileType === 'commercial' ? 'Комерційний' : 
-        consumption.profileType === 'industrial' ? 'Промисловий' : 'Власний графік'
-      ],
-      ['---', '---'],
-      ['Річна генерація (кВт·год)', totalGen],
-      ['Автономність (%)', autonomyPercent],
-      ['Економія за рік (₴)', savings],
-      ['Зниження CO2 (тонн/рік)', co2Reduction],
-      ['Капітальні витрати CAPEX ($)', capex],
-      ['LCOE (₴/кВт·год)', lcoe],
-      ['Термін окупності (роки)', payback]
-    ];
+  const handleDownloadJSON = () => {
+    const data = {
+      config,
+      location,
+      equipment,
+      consumption,
+      climateData
+    };
     
-    const csvContent = "data:text/csv;charset=utf-8,\uFEFF" 
-      + headers.join(',') + '\n' 
-      + rows.map(e => e.join(',')).join('\n');
-      
-    const encodedUri = encodeURI(csvContent);
+    const jsonString = JSON.stringify(data, null, 2);
+    const blob = new Blob([jsonString], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    
     const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", "EnergyMix_Data.csv");
+    link.href = url;
+    link.download = "EnergyMix_Project.json";
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
   return (
@@ -312,15 +262,15 @@ export function Step5Report({
             
             <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2">Експорт Даних</h3>
             <p className="text-sm text-slate-500 dark:text-slate-400 mb-8 flex-1">
-              Завантажте сирі дані розрахунків у форматі CSV або JSON для подальшого аналізу.
+              Збережіть файл проекту для подальшого завантаження та редагування.
             </p>
             
             <button 
-              onClick={handleDownloadCSV}
+              onClick={handleDownloadJSON}
               className="w-full py-4 px-6 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-900 dark:text-white rounded-xl font-medium flex items-center justify-center gap-2 transition-colors"
             >
               <Download className="w-5 h-5" />
-              Завантажити CSV
+              Зберегти проект (JSON)
             </button>
           </div>
         </div>
@@ -484,7 +434,7 @@ export function Step5Report({
                 </p>
                 <p style={{ margin: 0, display: 'flex', justifyContent: 'space-between' }}>
                   <span style={{ color: '#64748b' }}>Термін окупності:</span>
-                  <span style={{ fontWeight: 'bold', color: '#d97706' }}>{payback} років</span>
+                  <span style={{ fontWeight: 'bold', color: '#d97706' }}>{payback}</span>
                 </p>
               </div>
             </div>

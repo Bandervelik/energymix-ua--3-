@@ -31,7 +31,7 @@ const steps = [
 
 export function Dashboard() {
   const [currentStep, setCurrentStep] = useState(1);
-  const { theme, toggleTheme } = useTheme();
+  const { theme, toggleTheme, resolvedTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
   
   useEffect(() => {
@@ -40,10 +40,10 @@ export function Dashboard() {
   }, []);
   
   const [config, setConfig] = useState<SystemConfig>({
-    solar: true,
+    solar: false,
     wind: false,
     hydro: false,
-    battery: true,
+    battery: false,
   });
 
   // Lifted state for steps
@@ -53,7 +53,7 @@ export function Dashboard() {
     installationSite: ''
   });
   const [equipment, setEquipment] = useState({
-    solar: 8,
+    solar: 0,
     solarTilt: 35,
     solarAzimuth: 180,
     solarLosses: 14,
@@ -62,12 +62,14 @@ export function Dashboard() {
     solarPanelPrice: 320,
     solarPanelLength: 1700,
     solarPanelWidth: 1100,
-    solarPanelsCount: 20,
+    solarPanelsCount: 0,
     solarCellType: 'mono',
     solarTempCoeffPmax: -0.35,
     solarDegradation: 0.5,
     
-    windCount: 1,
+    windPreset: 'custom',
+    windCount: 0,
+    windPrice: 2000,
     windRotorDiameter: 3,
     windHubHeight: 15,
     windTsr: 6,
@@ -75,7 +77,9 @@ export function Dashboard() {
     windBladesCount: 3,
     windBladePitch: 0,
     
-    hydroCount: 1,
+    hydroPreset: 'custom',
+    hydroCount: 0,
+    hydroPrice: 5000,
     hydroTurbineType: 'pelton',
     hydroRunnerDiameter: 0.5,
     hydroPenstockLength: 100,
@@ -85,9 +89,11 @@ export function Dashboard() {
     hydroHead: 10,
     hydroFlow: 25,
     
-    batteryModulesCount: 4,
+    batteryPreset: 'custom',
+    batteryModulesCount: 0,
+    batteryPrice: 2000,
     batteryModuleCapacity: 5,
-    battery: 20,
+    battery: 0,
     batteryDod: 80,
   });
   const [consumption, setConsumption] = useState({
@@ -101,6 +107,14 @@ export function Dashboard() {
     precipitation: 650,
     isLoading: false
   });
+
+  const handleImportProject = (data: any) => {
+    if (data.config) setConfig(data.config);
+    if (data.location) setLocation(data.location);
+    if (data.equipment) setEquipment(data.equipment);
+    if (data.consumption) setConsumption(data.consumption);
+    if (data.climateData) setClimateData(data.climateData);
+  };
 
   const nextStep = () => setCurrentStep(p => Math.min(p + 1, 5));
   const prevStep = () => setCurrentStep(p => Math.max(p - 1, 1));
@@ -154,7 +168,7 @@ export function Dashboard() {
               className="p-2 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors w-9 h-9 flex items-center justify-center"
               aria-label="Перемкнути тему"
             >
-              {mounted ? (theme === 'dark' ? <SunIcon className="w-5 h-5" /> : <Moon className="w-5 h-5" />) : null}
+              {mounted ? (resolvedTheme === 'dark' ? <SunIcon className="w-5 h-5" /> : <Moon className="w-5 h-5" />) : null}
             </button>
           </div>
         </header>
@@ -170,7 +184,7 @@ export function Dashboard() {
                 exit={{ opacity: 0, y: -10 }}
                 transition={{ duration: 0.2 }}
               >
-                {currentStep === 1 && <Step1Location location={location} setLocation={setLocation} climateData={climateData} setClimateData={setClimateData} />}
+                {currentStep === 1 && <Step1Location location={location} setLocation={setLocation} climateData={climateData} setClimateData={setClimateData} onImportProject={handleImportProject} />}
                 {currentStep === 2 && <Step2Equipment config={config} setConfig={setConfig} equipment={equipment} setEquipment={setEquipment} />}
                 {currentStep === 3 && <Step3Consumption consumption={consumption} setConsumption={setConsumption} />}
                 {currentStep === 4 && <Step4Results config={config} equipment={equipment} consumption={consumption} climateData={climateData} />}

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Sun, Wind, Droplet, Battery, Info, Settings } from 'lucide-react';
+import { Sun, Wind, Droplet, Battery, Info, Settings, Save, Trash2 } from 'lucide-react';
 import { SystemConfig } from '../dashboard';
 
 export function Step2Equipment({ 
@@ -16,19 +16,19 @@ export function Step2Equipment({
     solar: number, solarTilt: number, solarAzimuth: number, solarLosses: number,
     solarPanelPreset: string, solarPanelPower: number, solarPanelPrice: number,
     solarPanelLength: number, solarPanelWidth: number, solarPanelsCount: number, solarCellType: string, solarTempCoeffPmax: number, solarDegradation: number,
-    windCount: number, windRotorDiameter: number, windHubHeight: number, windTsr: number, windCp: number,
+    windPreset: string, windCount: number, windPrice: number, windRotorDiameter: number, windHubHeight: number, windTsr: number, windCp: number,
     windBladesCount: number, windBladePitch: number,
-    hydroCount: number, hydroTurbineType: string, hydroRunnerDiameter: number, hydroPenstockLength: number, hydroPenstockDiameter: number, hydroPenstockMaterial: string, hydroResidualFlow: number, hydroHead: number, hydroFlow: number,
-    batteryModulesCount: number, batteryModuleCapacity: number, battery: number, batteryDod: number
+    hydroPreset: string, hydroCount: number, hydroPrice: number, hydroTurbineType: string, hydroRunnerDiameter: number, hydroPenstockLength: number, hydroPenstockDiameter: number, hydroPenstockMaterial: string, hydroResidualFlow: number, hydroHead: number, hydroFlow: number,
+    batteryPreset: string, batteryModulesCount: number, batteryPrice: number, batteryModuleCapacity: number, battery: number, batteryDod: number
   },
   setEquipment: React.Dispatch<React.SetStateAction<{ 
     solar: number, solarTilt: number, solarAzimuth: number, solarLosses: number,
     solarPanelPreset: string, solarPanelPower: number, solarPanelPrice: number,
     solarPanelLength: number, solarPanelWidth: number, solarPanelsCount: number, solarCellType: string, solarTempCoeffPmax: number, solarDegradation: number,
-    windCount: number, windRotorDiameter: number, windHubHeight: number, windTsr: number, windCp: number,
+    windPreset: string, windCount: number, windPrice: number, windRotorDiameter: number, windHubHeight: number, windTsr: number, windCp: number,
     windBladesCount: number, windBladePitch: number,
-    hydroCount: number, hydroTurbineType: string, hydroRunnerDiameter: number, hydroPenstockLength: number, hydroPenstockDiameter: number, hydroPenstockMaterial: string, hydroResidualFlow: number, hydroHead: number, hydroFlow: number,
-    batteryModulesCount: number, batteryModuleCapacity: number, battery: number, batteryDod: number
+    hydroPreset: string, hydroCount: number, hydroPrice: number, hydroTurbineType: string, hydroRunnerDiameter: number, hydroPenstockLength: number, hydroPenstockDiameter: number, hydroPenstockMaterial: string, hydroResidualFlow: number, hydroHead: number, hydroFlow: number,
+    batteryPreset: string, batteryModulesCount: number, batteryPrice: number, batteryModuleCapacity: number, battery: number, batteryDod: number
   }>>
 }) {
   const toggleConfig = (key: keyof SystemConfig) => {
@@ -36,9 +36,9 @@ export function Step2Equipment({
   };
 
   const capex = (config.solar ? equipment.solarPanelsCount * (equipment.solarPanelPrice || 320) : 0) + 
-                (config.wind ? equipment.windCount * (Math.PI * Math.pow(equipment.windRotorDiameter / 2, 2)) * 300 : 0) +
-                (config.hydro ? equipment.hydroCount * (equipment.hydroRunnerDiameter * 10000) : 0) +
-                (config.battery ? equipment.battery * 400 : 0);
+                (config.wind ? equipment.windCount * (equipment.windPrice || 2000) : 0) +
+                (config.hydro ? equipment.hydroCount * (equipment.hydroPrice || 5000) : 0) +
+                (config.battery ? equipment.batteryModulesCount * (equipment.batteryPrice || 2000) : 0);
 
   return (
     <div className="space-y-8">
@@ -136,24 +136,31 @@ export function Step2Equipment({
                   Загальна потужність: {equipment.solar.toFixed(1)} кВт
                 </span>
               </div>
-              <select
-                value={equipment.solarPanelPreset}
-                onChange={(e) => {
-                  const preset = e.target.value;
-                  if (preset === 'standard-400w') {
-                    setEquipment(prev => ({ ...prev, solarPanelPreset: preset, solarPanelPower: 400, solarPanelPrice: 320, solarPanelLength: 1700, solarPanelWidth: 1100, solarCellType: 'mono', solarTempCoeffPmax: -0.35, solarDegradation: 0.5, solar: (prev.solarPanelsCount * 400) / 1000 }));
-                  } else if (preset === 'premium-550w') {
-                    setEquipment(prev => ({ ...prev, solarPanelPreset: preset, solarPanelPower: 550, solarPanelPrice: 440, solarPanelLength: 2200, solarPanelWidth: 1100, solarCellType: 'mono', solarTempCoeffPmax: -0.30, solarDegradation: 0.4, solar: (prev.solarPanelsCount * 550) / 1000 }));
-                  } else {
-                    setEquipment(prev => ({ ...prev, solarPanelPreset: preset }));
-                  }
+              <CustomModelSelector
+                equipmentType="solar"
+                preset={equipment.solarPanelPreset}
+                setPreset={(val) => setEquipment(prev => ({ ...prev, solarPanelPreset: val }))}
+                defaultOptions={[
+                  { value: 'standard-400w', label: 'Стандартна (400 Вт, 1700x1100мм)', params: { solarPanelPower: 400, solarPanelPrice: 320, solarPanelLength: 1700, solarPanelWidth: 1100, solarCellType: 'mono', solarTempCoeffPmax: -0.35, solarDegradation: 0.5 } },
+                  { value: 'premium-550w', label: 'Преміум (550 Вт, 2200x1100мм)', params: { solarPanelPower: 550, solarPanelPrice: 440, solarPanelLength: 2200, solarPanelWidth: 1100, solarCellType: 'mono', solarTempCoeffPmax: -0.30, solarDegradation: 0.4 } }
+                ]}
+                currentParams={{
+                  solarPanelPower: equipment.solarPanelPower,
+                  solarPanelPrice: equipment.solarPanelPrice,
+                  solarPanelLength: equipment.solarPanelLength,
+                  solarPanelWidth: equipment.solarPanelWidth,
+                  solarCellType: equipment.solarCellType,
+                  solarTempCoeffPmax: equipment.solarTempCoeffPmax,
+                  solarDegradation: equipment.solarDegradation
                 }}
-                className="w-full p-2.5 text-sm bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-all"
-              >
-                <option value="standard-400w">Стандартна (400 Вт, 1700x1100мм)</option>
-                <option value="premium-550w">Преміум (550 Вт, 2200x1100мм)</option>
-                <option value="custom">Своя конфігурація</option>
-              </select>
+                onApplyParams={(params) => {
+                  setEquipment(prev => ({ 
+                    ...prev, 
+                    ...params,
+                    solar: (prev.solarPanelsCount * params.solarPanelPower) / 1000
+                  }));
+                }}
+              />
             </div>
           </ConfigCard>
         )}
@@ -170,17 +177,45 @@ export function Step2Equipment({
             step={1}
             mainLabel="Кількість турбін"
             description="Кількість вітрогенераторів у вашій системі."
-            itemCost={Math.PI * Math.pow(equipment.windRotorDiameter / 2, 2) * 300}
-            totalCost={equipment.windCount * Math.PI * Math.pow(equipment.windRotorDiameter / 2, 2) * 300}
+            itemCost={equipment.windPrice || 2000}
+            totalCost={equipment.windCount * (equipment.windPrice || 2000)}
             advancedFields={[
-              { label: 'Діаметр ротора (м)', value: equipment.windRotorDiameter, onChange: (v: any) => setEquipment(prev => ({ ...prev, windRotorDiameter: v })), min: 1, max: 50, step: 0.5, helpText: 'Діаметр ротора визначає площу обмітання та кількість енергії, яку може перехопити турбіна.' },
-              { label: 'Висота щогли (м)', value: equipment.windHubHeight, onChange: (v: any) => setEquipment(prev => ({ ...prev, windHubHeight: v })), min: 10, max: 100, helpText: 'Висота від землі до центру ротора. Чим вище, тим стабільніший вітер.' },
-              { label: 'TSR (Коеф. швидкохідності)', value: equipment.windTsr, onChange: (v: any) => setEquipment(prev => ({ ...prev, windTsr: v })), min: 1, max: 15, step: 0.1, helpText: 'Відношення швидкості кінчика лопаті до швидкості вітру. Для 3-лопатевих типово 6-7.' },
-              { label: 'Коефіцієнт потужності (Cp)', value: equipment.windCp, onChange: (v: any) => setEquipment(prev => ({ ...prev, windCp: v })), min: 0.1, max: 0.59, step: 0.01, helpText: 'Ефективність перетворення енергії вітру. Максимум (ліміт Бетца) - 0.59. Типово 0.3-0.45.' },
-              { label: 'Кількість лопатей', value: equipment.windBladesCount, onChange: (v: any) => setEquipment(prev => ({ ...prev, windBladesCount: v })), min: 1, max: 12, helpText: 'Кількість лопатей крильчатки. Найбільш поширені 3-лопатеві турбіни.' },
-              { label: 'Кут атаки лопаті (°)', value: equipment.windBladePitch, onChange: (v: any) => setEquipment(prev => ({ ...prev, windBladePitch: v })), min: -5, max: 90, step: 0.5, helpText: 'Кут нахилу лопатей відносно площини обертання. Впливає на пусковий момент та ефективність.' },
+              ...(equipment.windPreset === 'custom' ? [
+                { label: 'Ціна турбіни ($)', value: equipment.windPrice || 2000, onChange: (v: any) => setEquipment(prev => ({ ...prev, windPrice: v })), min: 100, max: 100000, step: 10, helpText: 'Вартість однієї вітрової турбіни.' },
+                { label: 'Діаметр ротора (м)', value: equipment.windRotorDiameter, onChange: (v: any) => setEquipment(prev => ({ ...prev, windRotorDiameter: v })), min: 1, max: 50, step: 0.5, helpText: 'Діаметр ротора визначає площу обмітання та кількість енергії, яку може перехопити турбіна.' },
+                { label: 'Висота щогли (м)', value: equipment.windHubHeight, onChange: (v: any) => setEquipment(prev => ({ ...prev, windHubHeight: v })), min: 10, max: 100, helpText: 'Висота від землі до центру ротора. Чим вище, тим стабільніший вітер.' },
+                { label: 'TSR (Коеф. швидкохідності)', value: equipment.windTsr, onChange: (v: any) => setEquipment(prev => ({ ...prev, windTsr: v })), min: 1, max: 15, step: 0.1, helpText: 'Відношення швидкості кінчика лопаті до швидкості вітру. Для 3-лопатевих типово 6-7.' },
+                { label: 'Коефіцієнт потужності (Cp)', value: equipment.windCp, onChange: (v: any) => setEquipment(prev => ({ ...prev, windCp: v })), min: 0.1, max: 0.59, step: 0.01, helpText: 'Ефективність перетворення енергії вітру. Максимум (ліміт Бетца) - 0.59. Типово 0.3-0.45.' },
+                { label: 'Кількість лопатей', value: equipment.windBladesCount, onChange: (v: any) => setEquipment(prev => ({ ...prev, windBladesCount: v })), min: 1, max: 12, helpText: 'Кількість лопатей крильчатки. Найбільш поширені 3-лопатеві турбіни.' },
+                { label: 'Кут атаки лопаті (°)', value: equipment.windBladePitch, onChange: (v: any) => setEquipment(prev => ({ ...prev, windBladePitch: v })), min: -5, max: 90, step: 0.5, helpText: 'Кут нахилу лопатей відносно площини обертання. Впливає на пусковий момент та ефективність.' },
+              ] : [])
             ]}
-          />
+          >
+            <div className="pt-4 border-t border-slate-100 dark:border-slate-700/50 space-y-3">
+              <div className="flex items-center justify-between mt-2">
+                <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Модель турбіни</label>
+              </div>
+              <CustomModelSelector
+                equipmentType="wind"
+                preset={equipment.windPreset}
+                setPreset={(val) => setEquipment(prev => ({ ...prev, windPreset: val }))}
+                defaultOptions={[
+                  { value: 'small-3m', label: 'Мала (Ø 3м, 15м щогла)', params: { windPrice: 2000, windRotorDiameter: 3, windHubHeight: 15, windTsr: 6, windCp: 0.4, windBladesCount: 3, windBladePitch: 0 } },
+                  { value: 'medium-5m', label: 'Середня (Ø 5м, 20м щогла)', params: { windPrice: 5000, windRotorDiameter: 5, windHubHeight: 20, windTsr: 6.5, windCp: 0.42, windBladesCount: 3, windBladePitch: 0 } }
+                ]}
+                currentParams={{
+                  windPrice: equipment.windPrice,
+                  windRotorDiameter: equipment.windRotorDiameter,
+                  windHubHeight: equipment.windHubHeight,
+                  windTsr: equipment.windTsr,
+                  windCp: equipment.windCp,
+                  windBladesCount: equipment.windBladesCount,
+                  windBladePitch: equipment.windBladePitch
+                }}
+                onApplyParams={(params) => setEquipment(prev => ({ ...prev, ...params }))}
+              />
+            </div>
+          </ConfigCard>
         )}
         
         {config.hydro && (
@@ -195,19 +230,49 @@ export function Step2Equipment({
             step={1}
             mainLabel="Кількість турбін"
             description="Кількість гідротурбін у вашій системі."
-            itemCost={equipment.hydroRunnerDiameter * 10000}
-            totalCost={equipment.hydroCount * equipment.hydroRunnerDiameter * 10000}
+            itemCost={equipment.hydroPrice || 5000}
+            totalCost={equipment.hydroCount * (equipment.hydroPrice || 5000)}
             advancedFields={[
-              { label: 'Діаметр колеса (мм)', value: Math.round(equipment.hydroRunnerDiameter * 1000), onChange: (v: any) => setEquipment(prev => ({ ...prev, hydroRunnerDiameter: v / 1000 })), min: 100, max: 5000, step: 10, helpText: 'Діаметр робочого колеса використовується для масштабування гідростанції.' },
-              { label: 'Тип турбіни', value: equipment.hydroTurbineType, onChange: (v: any) => setEquipment(prev => ({ ...prev, hydroTurbineType: v })), type: 'select' as 'select', options: [{value: 'pelton', label: 'Пелтона'}, {value: 'kaplan', label: 'Каплана'}, {value: 'francis', label: 'Френсіса'}], helpText: 'Пелтона для високого напору, Каплана для низького, Френсіса для середнього.' },
-              { label: 'Перепад висот (м)', value: equipment.hydroHead, onChange: (v: any) => setEquipment(prev => ({ ...prev, hydroHead: v })), min: 1, max: 500, helpText: 'Вертикальна відстань від місця забору до турбіни. Вимірюється нівеліром або GPS.' },
-              { label: 'Витрата води (л/с)', value: equipment.hydroFlow, onChange: (v: any) => setEquipment(prev => ({ ...prev, hydroFlow: v })), min: 1, max: 10000, helpText: 'Об\'єм води за секунду. Можна виміряти методом поплавка або заповненням ємності.' },
-              { label: 'Екологічний стік (л/с)', value: equipment.hydroResidualFlow, onChange: (v: any) => setEquipment(prev => ({ ...prev, hydroResidualFlow: v })), min: 0, max: 1000, helpText: 'Мінімальна кількість води, що має залишатися в річці за законом.' },
-              { label: 'Довжина труби (м)', value: equipment.hydroPenstockLength, onChange: (v: any) => setEquipment(prev => ({ ...prev, hydroPenstockLength: v })), min: 1, max: 5000, helpText: 'Параметри напірного трубопроводу. Впливають на втрати тиску.' },
-              { label: 'Діаметр труби (мм)', value: Math.round(equipment.hydroPenstockDiameter * 1000), onChange: (v: any) => setEquipment(prev => ({ ...prev, hydroPenstockDiameter: v / 1000 })), min: 10, max: 5000, step: 1, helpText: 'Внутрішній діаметр напірного трубопроводу. Впливає на швидкість потоку та втрати на тертя.' },
-              { label: 'Матеріал труби', value: equipment.hydroPenstockMaterial, onChange: (v: any) => setEquipment(prev => ({ ...prev, hydroPenstockMaterial: v })), type: 'select' as 'select', options: [{value: 'pvc', label: 'ПВХ'}, {value: 'steel', label: 'Сталь'}, {value: 'concrete', label: 'Бетон'}], helpText: 'Шорсткість матеріалу впливає на тертя води. ПВХ має найменший опір.' },
+              ...(equipment.hydroPreset === 'custom' ? [
+                { label: 'Ціна турбіни ($)', value: equipment.hydroPrice || 5000, onChange: (v: any) => setEquipment(prev => ({ ...prev, hydroPrice: v })), min: 100, max: 200000, step: 100, helpText: 'Вартість однієї гідротурбіни.' },
+                { label: 'Діаметр колеса (мм)', value: Math.round(equipment.hydroRunnerDiameter * 1000), onChange: (v: any) => setEquipment(prev => ({ ...prev, hydroRunnerDiameter: v / 1000 })), min: 100, max: 5000, step: 10, helpText: 'Діаметр робочого колеса використовується для масштабування гідростанції.' },
+                { label: 'Тип турбіни', value: equipment.hydroTurbineType, onChange: (v: any) => setEquipment(prev => ({ ...prev, hydroTurbineType: v })), type: 'select' as 'select', options: [{value: 'pelton', label: 'Пелтона'}, {value: 'kaplan', label: 'Каплана'}, {value: 'francis', label: 'Френсіса'}], helpText: 'Пелтона для високого напору, Каплана для низького, Френсіса для середнього.' },
+                { label: 'Перепад висот (м)', value: equipment.hydroHead, onChange: (v: any) => setEquipment(prev => ({ ...prev, hydroHead: v })), min: 1, max: 500, helpText: 'Вертикальна відстань від місця забору до турбіни. Вимірюється нівеліром або GPS.' },
+                { label: 'Витрата води (л/с)', value: equipment.hydroFlow, onChange: (v: any) => setEquipment(prev => ({ ...prev, hydroFlow: v })), min: 1, max: 10000, helpText: 'Об\'єм води за секунду. Можна виміряти методом поплавка або заповненням ємності.' },
+                { label: 'Екологічний стік (л/с)', value: equipment.hydroResidualFlow, onChange: (v: any) => setEquipment(prev => ({ ...prev, hydroResidualFlow: v })), min: 0, max: 1000, helpText: 'Мінімальна кількість води, що має залишатися в річці за законом.' },
+                { label: 'Довжина труби (м)', value: equipment.hydroPenstockLength, onChange: (v: any) => setEquipment(prev => ({ ...prev, hydroPenstockLength: v })), min: 1, max: 5000, helpText: 'Параметри напірного трубопроводу. Впливають на втрати тиску.' },
+                { label: 'Діаметр труби (мм)', value: Math.round(equipment.hydroPenstockDiameter * 1000), onChange: (v: any) => setEquipment(prev => ({ ...prev, hydroPenstockDiameter: v / 1000 })), min: 10, max: 5000, step: 1, helpText: 'Внутрішній діаметр напірного трубопроводу. Впливає на швидкість потоку та втрати на тертя.' },
+                { label: 'Матеріал труби', value: equipment.hydroPenstockMaterial, onChange: (v: any) => setEquipment(prev => ({ ...prev, hydroPenstockMaterial: v })), type: 'select' as 'select', options: [{value: 'pvc', label: 'ПВХ'}, {value: 'steel', label: 'Сталь'}, {value: 'concrete', label: 'Бетон'}], helpText: 'Шорсткість матеріалу впливає на тертя води. ПВХ має найменший опір.' },
+              ] : [])
             ]}
-          />
+          >
+            <div className="pt-4 border-t border-slate-100 dark:border-slate-700/50 space-y-3">
+              <div className="flex items-center justify-between mt-2">
+                <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Модель турбіни</label>
+              </div>
+              <CustomModelSelector
+                equipmentType="hydro"
+                preset={equipment.hydroPreset}
+                setPreset={(val) => setEquipment(prev => ({ ...prev, hydroPreset: val }))}
+                defaultOptions={[
+                  { value: 'pelton-small', label: 'Пелтона (Високий напір)', params: { hydroPrice: 5000, hydroTurbineType: 'pelton', hydroRunnerDiameter: 0.5, hydroHead: 50, hydroFlow: 10 } },
+                  { value: 'kaplan-small', label: 'Каплана (Низький напір)', params: { hydroPrice: 10000, hydroTurbineType: 'kaplan', hydroRunnerDiameter: 1.0, hydroHead: 5, hydroFlow: 100 } }
+                ]}
+                currentParams={{
+                  hydroPrice: equipment.hydroPrice,
+                  hydroTurbineType: equipment.hydroTurbineType,
+                  hydroRunnerDiameter: equipment.hydroRunnerDiameter,
+                  hydroPenstockLength: equipment.hydroPenstockLength,
+                  hydroPenstockDiameter: equipment.hydroPenstockDiameter,
+                  hydroPenstockMaterial: equipment.hydroPenstockMaterial,
+                  hydroResidualFlow: equipment.hydroResidualFlow,
+                  hydroHead: equipment.hydroHead,
+                  hydroFlow: equipment.hydroFlow
+                }}
+                onApplyParams={(params) => setEquipment(prev => ({ ...prev, ...params }))}
+              />
+            </div>
+          </ConfigCard>
         )}
         
         {config.battery && (
@@ -222,11 +287,14 @@ export function Step2Equipment({
             step={1}
             mainLabel="Кількість модулів"
             description="Кількість акумуляторних блоків у системі."
-            itemCost={equipment.batteryModuleCapacity * 400}
-            totalCost={equipment.battery * 400}
+            itemCost={equipment.batteryPrice || 2000}
+            totalCost={equipment.batteryModulesCount * (equipment.batteryPrice || 2000)}
             advancedFields={[
-              { label: 'Ємність 1 модуля (кВт·год)', value: equipment.batteryModuleCapacity, onChange: (v: any) => setEquipment(prev => ({ ...prev, batteryModuleCapacity: v, battery: prev.batteryModulesCount * v })), min: 1, max: 20, step: 0.5, helpText: 'Ємність одного акумуляторного блоку.' },
-              { label: 'Глибина розряду (%)', value: equipment.batteryDod, onChange: (v: any) => setEquipment(prev => ({ ...prev, batteryDod: v })), min: 10, max: 100, helpText: 'Відсоток ємності, який можна використовувати. Для LiFePO4 типово 80-90%, для свинцевих 50%.' },
+              ...(equipment.batteryPreset === 'custom' ? [
+                { label: 'Ціна модуля ($)', value: equipment.batteryPrice || 2000, onChange: (v: any) => setEquipment(prev => ({ ...prev, batteryPrice: v })), min: 50, max: 20000, step: 10, helpText: 'Вартість одного акумуляторного модуля.' },
+                { label: 'Ємність 1 модуля (кВт·год)', value: equipment.batteryModuleCapacity, onChange: (v: any) => setEquipment(prev => ({ ...prev, batteryModuleCapacity: v, battery: prev.batteryModulesCount * v })), min: 1, max: 20, step: 0.5, helpText: 'Ємність одного акумуляторного блоку.' },
+                { label: 'Глибина розряду (%)', value: equipment.batteryDod, onChange: (v: any) => setEquipment(prev => ({ ...prev, batteryDod: v })), min: 10, max: 100, helpText: 'Відсоток ємності, який можна використовувати. Для LiFePO4 типово 80-90%, для свинцевих 50%.' },
+              ] : [])
             ]}
           >
             <div className="pt-4 border-t border-slate-100 dark:border-slate-700/50 space-y-3">
@@ -234,6 +302,25 @@ export function Step2Equipment({
                 <span className="text-sm text-slate-600 dark:text-slate-400">Загальна ємність:</span>
                 <span className="font-mono font-medium text-slate-900 dark:text-white">{equipment.battery} кВт·год</span>
               </div>
+              <CustomModelSelector
+                equipmentType="battery"
+                preset={equipment.batteryPreset}
+                setPreset={(val) => setEquipment(prev => ({ ...prev, batteryPreset: val }))}
+                defaultOptions={[
+                  { value: 'lifepo4-5kwh', label: 'LiFePO4 (5 кВт·год, 90% DoD)', params: { batteryPrice: 2000, batteryModuleCapacity: 5, batteryDod: 90 } },
+                  { value: 'lead-acid-2kwh', label: 'Свинцево-кислотний (2 кВт·год, 50% DoD)', params: { batteryPrice: 400, batteryModuleCapacity: 2, batteryDod: 50 } }
+                ]}
+                currentParams={{
+                  batteryPrice: equipment.batteryPrice,
+                  batteryModuleCapacity: equipment.batteryModuleCapacity,
+                  batteryDod: equipment.batteryDod
+                }}
+                onApplyParams={(params) => setEquipment(prev => ({ 
+                  ...prev, 
+                  ...params,
+                  battery: prev.batteryModulesCount * params.batteryModuleCapacity
+                }))}
+              />
             </div>
           </ConfigCard>
         )}
@@ -548,6 +635,144 @@ function ConfigCard({
               </div>
             ))}
           </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CustomModelSelector({
+  equipmentType,
+  preset,
+  setPreset,
+  defaultOptions,
+  currentParams,
+  onApplyParams
+}: {
+  equipmentType: string;
+  preset: string;
+  setPreset: (val: string) => void;
+  defaultOptions: { value: string, label: string, params?: any }[];
+  currentParams: any;
+  onApplyParams: (params: any) => void;
+}) {
+  const [customModels, setCustomModels] = React.useState<any[]>([]);
+  const [isSaving, setIsSaving] = React.useState(false);
+  const [newModelName, setNewModelName] = React.useState('');
+
+  React.useEffect(() => {
+    const saved = localStorage.getItem(`customModels_${equipmentType}`);
+    if (saved) {
+      try { setCustomModels(JSON.parse(saved)); } catch (e) {}
+    }
+  }, [equipmentType]);
+
+  const saveModel = () => {
+    if (!newModelName.trim()) return;
+    const newModel = {
+      id: `custom-${Date.now()}`,
+      name: newModelName,
+      params: currentParams
+    };
+    const updated = [...customModels, newModel];
+    setCustomModels(updated);
+    localStorage.setItem(`customModels_${equipmentType}`, JSON.stringify(updated));
+    setPreset(newModel.id);
+    setNewModelName('');
+    setIsSaving(false);
+  };
+
+  const deleteModel = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const updated = customModels.filter(m => m.id !== id);
+    setCustomModels(updated);
+    localStorage.setItem(`customModels_${equipmentType}`, JSON.stringify(updated));
+    if (preset === id) {
+      setPreset('custom');
+    }
+  };
+
+  return (
+    <div className="space-y-3">
+      <div className="flex gap-2 items-center">
+        <select
+          value={preset}
+          onChange={(e) => {
+            const val = e.target.value;
+            setPreset(val);
+            if (val !== 'custom') {
+              const defaultOpt = defaultOptions.find(o => o.value === val);
+              if (defaultOpt && defaultOpt.params) {
+                onApplyParams(defaultOpt.params);
+              } else {
+                const customOpt = customModels.find(m => m.id === val);
+                if (customOpt && customOpt.params) {
+                  onApplyParams(customOpt.params);
+                }
+              }
+            }
+          }}
+          className="flex-1 p-2.5 text-sm bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-all"
+        >
+          <optgroup label="Стандартні">
+            {defaultOptions.map(opt => (
+              <option key={opt.value} value={opt.value}>{opt.label}</option>
+            ))}
+            <option value="custom">Своя конфігурація</option>
+          </optgroup>
+          {customModels.length > 0 && (
+            <optgroup label="Збережені моделі">
+              {customModels.map(model => (
+                <option key={model.id} value={model.id}>{model.name}</option>
+              ))}
+            </optgroup>
+          )}
+        </select>
+        
+        {preset.startsWith('custom-') && (
+          <button
+            onClick={(e) => deleteModel(preset, e)}
+            className="p-2.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-xl transition-colors border border-transparent hover:border-red-200 dark:hover:border-red-500/30"
+            title="Видалити модель"
+          >
+            <Trash2 className="w-4 h-4" />
+          </button>
+        )}
+      </div>
+
+      {preset === 'custom' && !isSaving && (
+        <button
+          onClick={() => setIsSaving(true)}
+          className="text-xs flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 font-medium transition-colors"
+        >
+          <Save className="w-3.5 h-3.5" />
+          Зберегти поточну конфігурацію як модель
+        </button>
+      )}
+
+      {isSaving && (
+        <div className="flex gap-2 items-center bg-slate-50 dark:bg-slate-800/50 p-2 rounded-xl border border-slate-200 dark:border-slate-700">
+          <input
+            type="text"
+            value={newModelName}
+            onChange={(e) => setNewModelName(e.target.value)}
+            placeholder="Назва моделі..."
+            className="flex-1 px-3 py-1.5 text-sm bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
+            autoFocus
+          />
+          <button
+            onClick={saveModel}
+            disabled={!newModelName.trim()}
+            className="px-3 py-1.5 text-sm bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
+          >
+            Зберегти
+          </button>
+          <button
+            onClick={() => { setIsSaving(false); setNewModelName(''); }}
+            className="px-3 py-1.5 text-sm text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg transition-colors"
+          >
+            Скасувати
+          </button>
         </div>
       )}
     </div>

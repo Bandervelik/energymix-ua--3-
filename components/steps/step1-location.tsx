@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { MapPin, Search, Cloud, Sun, Wind, Droplet, Loader2, Navigation, Info } from 'lucide-react';
+import { MapPin, Search, Cloud, Sun, Wind, Droplet, Loader2, Navigation, Info, Upload } from 'lucide-react';
 import { motion } from 'motion/react';
 import dynamic from 'next/dynamic';
 
@@ -18,12 +18,14 @@ export function Step1Location({
   location, 
   setLocation,
   climateData,
-  setClimateData
+  setClimateData,
+  onImportProject
 }: { 
   location: { address: string, coordinates: [number, number], installationSite: string }, 
   setLocation: React.Dispatch<React.SetStateAction<{ address: string, coordinates: [number, number], installationSite: string }>>,
   climateData: { solar: number, wind: number, precipitation: number, isLoading: boolean },
-  setClimateData: React.Dispatch<React.SetStateAction<{ solar: number, wind: number, precipitation: number, isLoading: boolean }>>
+  setClimateData: React.Dispatch<React.SetStateAction<{ solar: number, wind: number, precipitation: number, isLoading: boolean }>>,
+  onImportProject?: (data: any) => void
 }) {
   const [searchQuery, setSearchQuery] = useState(location.address);
   const [suggestions, setSuggestions] = useState<any[]>([]);
@@ -31,7 +33,32 @@ export function Step1Location({
   const [isSearching, setIsSearching] = useState(false);
   const [isLocating, setIsLocating] = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const isFromSearch = useRef(false);
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const json = JSON.parse(event.target?.result as string);
+        if (onImportProject) {
+          onImportProject(json);
+        }
+      } catch (error) {
+        console.error("Error parsing JSON:", error);
+        alert("Помилка при читанні файлу. Переконайтеся, що це коректний JSON файл проекту.");
+      }
+    };
+    reader.readAsText(file);
+    
+    // Reset input so the same file can be selected again if needed
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
 
   // Sync internal search query if location.address changes externally
   useEffect(() => {
@@ -55,13 +82,21 @@ export function Step1Location({
       if (searchQuery && searchQuery !== location.address && showSuggestions) {
         setIsSearching(true);
         try {
-          const res = await fetch(`/api/geocode?q=${encodeURIComponent(searchQuery)}`);
+          const url = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(searchQuery)}&language=uk&count=5`;
+          const res = await fetch(url);
           if (!res.ok) {
-            const errData = await res.json().catch(() => ({}));
-            throw new Error(errData.error || `Network response was not ok: ${res.status}`);
+            throw new Error(`Network response was not ok: ${res.status}`);
           }
           const data = await res.json();
-          setSuggestions(data);
+          const results = (data.results || []).map((item: any) => {
+            const parts = [item.name, item.admin1, item.country].filter(Boolean);
+            return {
+              lat: item.latitude.toString(),
+              lon: item.longitude.toString(),
+              display_name: parts.join(', ')
+            };
+          });
+          setSuggestions(results);
         } catch (error) {
           console.error("Error fetching suggestions:", error);
         } finally {
@@ -84,15 +119,21 @@ export function Step1Location({
     
     const fetchAddress = async () => {
       try {
-        const res = await fetch(`/api/geocode?lat=${location.coordinates[0]}&lon=${location.coordinates[1]}`);
+        const lat = location.coordinates[0];
+        const lon = location.coordinates[1];
+        const url = `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=uk`;
+        const res = await fetch(url);
         if (!res.ok) {
-          const errData = await res.json().catch(() => ({}));
-          throw new Error(errData.error || `Network response was not ok: ${res.status}`);
+          throw new Error(`Network response was not ok: ${res.status}`);
         }
         const data = await res.json();
-        if (data && data.display_name) {
-          setSearchQuery(data.display_name);
-          setLocation(prev => ({ ...prev, address: data.display_name }));
+        const parts = [data.locality, data.city, data.principalSubdivision, data.countryName].filter(Boolean);
+        const uniqueParts = Array.from(new Set(parts));
+        const display_name = uniqueParts.join(', ') || 'Unknown location';
+        
+        if (display_name) {
+          setSearchQuery(display_name);
+          setLocation(prev => ({ ...prev, address: display_name }));
         }
       } catch (error) {
         console.error("Reverse geocoding error:", error);
@@ -182,11 +223,38 @@ export function Step1Location({
 
   return (
     <div className="space-y-8">
-      <div className="flex flex-col gap-2">
-        <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Локація об&apos;єкта</h2>
-        <p className="text-slate-500 dark:text-slate-400">
-          Вкажіть місцезнаходження для отримання точних кліматичних даних (інсоляція, швидкість вітру).
-        </p>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex flex-col gap-2">
+          <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Локація об&apos;єкта</h2>
+          <p className="text-slate-500 dark:text-slate-400">
+            Вкажіть місцезнаходження для отримання точних кліматичних даних (інсоляція, швидкість вітру).
+          </p>
+        </div>
+        
+        {onImportProject && (
+          <div className="flex flex-col items-end gap-1">
+            <input 
+              type="file" 
+              accept=".json" 
+              className="hidden" 
+              ref={fileInputRef}
+              onChange={handleFileUpload}
+            />
+            <button 
+              onClick={() => fileInputRef.current?.click()}
+              className="group relative flex items-center gap-2 px-4 py-2.5 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/30 rounded-xl hover:bg-emerald-100 dark:hover:bg-emerald-500/20 transition-all shadow-sm text-sm font-medium"
+            >
+              <Upload className="w-4 h-4" />
+              Завантажити збережений проект
+              
+              {/* Tooltip */}
+              <div className="absolute right-0 top-full mt-2 w-64 p-2.5 text-[11px] leading-normal text-white bg-slate-900 dark:bg-slate-800 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 shadow-xl border border-slate-700 text-left font-normal">
+                Завантажте файл .json з вашого комп&apos;ютера, щоб відновити попередні розрахунки та налаштування обладнання.
+                <div className="absolute bottom-full right-4 -mb-1 border-4 border-transparent border-b-slate-900 dark:border-b-slate-800"></div>
+              </div>
+            </button>
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

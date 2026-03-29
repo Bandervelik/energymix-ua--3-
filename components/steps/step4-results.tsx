@@ -3,6 +3,7 @@
 import React from 'react';
 import { BarChart3, TrendingUp, DollarSign, Leaf, Zap, Info } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line } from 'recharts';
+import { formatPayback } from '@/lib/utils';
 
 import { SystemConfig } from '../dashboard';
 
@@ -156,7 +157,7 @@ export function Step4Results({
     }
   }
   
-  const payback = paybackYears > 0 ? paybackYears.toFixed(1) : '>20';
+  const payback = formatPayback(paybackYears);
 
   return (
     <div className="space-y-8">
@@ -190,7 +191,7 @@ export function Step4Results({
         <KpiCard 
           title="Термін окупності" 
           value={payback} 
-          unit="роки" 
+          unit="" 
           icon={TrendingUp} 
           color="amber" 
           trend="IRR: ~18%"
@@ -331,7 +332,7 @@ export function Step4Results({
               ) : autonomyPercent >= 100 ? (
                 <li className="flex gap-2 text-emerald-600 dark:text-emerald-400">
                   <span className="shrink-0">🌟</span>
-                  <span>Ви досягли повної або надлишкової річної автономності! <strong>Порада:</strong> Надлишок енергії влітку можна продавати за "зеленим тарифом" або використовувати для нагріву води.</span>
+                  <span>Ви досягли повної або надлишкової річної автономності! <strong>Порада:</strong> Надлишок енергії влітку можна продавати за &quot;зеленим тарифом&quot; або використовувати для нагріву води.</span>
                 </li>
               ) : (
                 <li className="flex gap-2 text-blue-600 dark:text-blue-400">
