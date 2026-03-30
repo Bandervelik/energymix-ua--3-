@@ -1,91 +1,85 @@
 import uvicorn
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from typing import List
 
-# Імпортуємо класи з твого розрахункового ядра
+import threading
+import time
+import os
+import sys
+import webview  # Нова бібліотека для нативного вікна
+from fastapi.staticfiles import StaticFiles
+
 from engine import HybridSimulator, SolarPanel, WindTurbine, MicroHydro
 
 app = FastAPI()
 
-# 1. Налаштування CORS (Критично важливо для зв'язку з Next.js)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Дозволяє запити з будь-якого джерела (для розробки)
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# 2. Pydantic моделі (Точно повторюють структуру стейтів з твого dashboard.tsx)
+# 2. Оновлені Pydantic моделі (без Deprecation Warnings)
 class LocationData(BaseModel):
+    model_config = ConfigDict(extra='allow')
     address: str
-    coordinates: List[float]  # [latitude, longitude]
+    coordinates: List[float]
 
 class ConfigData(BaseModel):
+    model_config = ConfigDict(extra='allow')
     solar: bool
     wind: bool
     hydro: bool
     battery: bool
 
 class EquipmentData(BaseModel):
-    solar: float
-    solarTilt: float
-    solarAzimuth: float
-    solarLosses: float
-    wind: float
-    windHubHeight: int
-    hydro: float
-    hydroHead: float
-    hydroFlow: float
-    battery: float
-    batteryDod: float
+    model_config = ConfigDict(extra='allow')
+    solar: float = 0.0
+    solarLosses: float = 14.0
+    wind: float = 0.0
+    windHubHeight: float = 15.0
+    hydro: float = 0.0
+    hydroHead: float = 10.0
+    hydroFlow: float = 25.0
+    battery: float = 0.0
 
 class ConsumptionData(BaseModel):
+    model_config = ConfigDict(extra='allow')
     annual: float
     profileType: str
 
 class SimulationRequest(BaseModel):
+    model_config = ConfigDict(extra='allow')
     location: LocationData
     config: ConfigData
     equipment: EquipmentData
     consumption: ConsumptionData
 
 
-# 3. Головний API-маршрут для розрахунку
 @app.post("/api/simulate")
 async def run_simulation(req: SimulationRequest):
     try:
-        # Витягуємо координати
         lat = req.location.coordinates[0]
         lon = req.location.coordinates[1]
         
-        # Переводимо річне споживання (наприклад, 12000) у середнє годинне, як того вимагає engine.py
         hourly_consumption = req.consumption.annual / 8760.0
-        
         sources = []
         
-        # Якщо сонячні панелі увімкнені в конфігурації
         if req.config.solar:
-            # Твій engine.py очікує площу в м². На фронтенді ти задаєш потужність у кВт.
-            # Приблизна формула: 1 кВт = 5 м² (при 20% ефективності)
             area = req.equipment.solar * 5.0
-            
-            # Перетворюємо відсоток втрат з фронтенду (наприклад, 14%) у performance_ratio (0.86)
             performance = 1.0 - (req.equipment.solarLosses / 100.0)
-            
             sources.append(SolarPanel(
                 area_m2=area, 
                 efficiency=0.20, 
                 performance_ratio=performance
             ))
             
-        # Якщо вітряк увімкнений
         if req.config.wind:
-            hub_height = req.equipment.windHubHeight
-            # engine.py викидає помилку, якщо висота не 10 або 100.
-            # Оскільки на фронтенді за замовчуванням стоїть 15, "округлюємо" це значення для API погоди.
+            hub_height = int(req.equipment.windHubHeight)
             if hub_height not in [10, 100]:
                 hub_height = 10 if hub_height < 55 else 100
                 
@@ -97,7 +91,6 @@ async def run_simulation(req: SimulationRequest):
                 hub_height=hub_height
             ))
             
-        # Якщо мікроГЕС увімкнена
         if req.config.hydro:
             sources.append(MicroHydro(
                 head_m=req.equipment.hydroHead,
@@ -105,7 +98,6 @@ async def run_simulation(req: SimulationRequest):
                 efficiency=0.80
             ))
             
-        # Створюємо симулятор і передаємо йому всі підготовлені дані
         simulator = HybridSimulator(
             sources=sources,
             latitude=lat,
@@ -113,16 +105,45 @@ async def run_simulation(req: SimulationRequest):
             hourly_consumption_kwh=hourly_consumption
         )
         
-        # Запускаємо ядро (воно скачає погоду з Open-Meteo і проведе розрахунок)
         results = simulator.run_simulation()
-        
-        # Відправляємо результати назад у React
         return {"status": "success", "data": results}
         
     except Exception as e:
-        # Якщо сталася помилка (наприклад, Open-Meteo недоступний), повертаємо 500 статус
         raise HTTPException(status_code=500, detail=str(e))
 
-if __name__ == "__main__":
-    # Запускаємо через об'єкт app, а не через рядок "main:app"
+# --- БЛОК ДЛЯ НАТИВНОГО ВІКНА ---
+if getattr(sys, 'frozen', False):
+    base_path = sys._MEIPASS
+else:
+    base_path = os.path.dirname(os.path.abspath(__file__))
+
+out_dir = os.path.join(base_path, "out")
+
+if os.path.exists(out_dir):
+    app.mount("/", StaticFiles(directory=out_dir, html=True), name="frontend")
+else:
+    print(f"ПОПЕРЕДЖЕННЯ: Папку фронтенду не знайдено за адресою {out_dir}")
+
+def start_server():
     uvicorn.run(app, host="127.0.0.1", port=8000)
+
+if __name__ == "__main__":
+    # Запускаємо сервер FastAPI у фоновому потоці
+    server_thread = threading.Thread(target=start_server, daemon=True)
+    server_thread.start()
+    
+    # Даємо серверу секунду на запуск
+    time.sleep(1)
+    
+    # Створюємо і відкриваємо красиве нативне вікно програми
+    window = webview.create_window(
+        title='EnergyMix UA - EcoHybridPlanner', 
+        url='http://127.0.0.1:8000',
+        width=1280,
+        height=800,
+        min_size=(1024, 768),
+        background_color='#0f172a' # Темний фон під час завантаження
+    )
+    
+    # Запускаємо головний цикл вікна
+    webview.start()

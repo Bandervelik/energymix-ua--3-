@@ -1,8 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { MapPin, Search, Cloud, Sun, Wind, Droplet, Loader2, Navigation, Info, Upload } from 'lucide-react';
-import { motion } from 'motion/react';
+import { MapPin, Search, Cloud, Sun, Wind, Droplet, Loader2, Navigation, Info } from 'lucide-react';
 import dynamic from 'next/dynamic';
 
 const MapPicker = dynamic(() => import('../map-picker'), { 
@@ -18,14 +17,13 @@ export function Step1Location({
   location, 
   setLocation,
   climateData,
-  setClimateData,
-  onImportProject
+  setClimateData
 }: { 
+  // ВИПРАВЛЕНО: Прибрали знак питання (?) біля installationSite
   location: { address: string, coordinates: [number, number], installationSite: string }, 
   setLocation: React.Dispatch<React.SetStateAction<{ address: string, coordinates: [number, number], installationSite: string }>>,
   climateData: { solar: number, wind: number, precipitation: number, isLoading: boolean },
-  setClimateData: React.Dispatch<React.SetStateAction<{ solar: number, wind: number, precipitation: number, isLoading: boolean }>>,
-  onImportProject?: (data: any) => void
+  setClimateData: React.Dispatch<React.SetStateAction<{ solar: number, wind: number, precipitation: number, isLoading: boolean }>>
 }) {
   const [searchQuery, setSearchQuery] = useState(location.address);
   const [suggestions, setSuggestions] = useState<any[]>([]);
@@ -33,32 +31,7 @@ export function Step1Location({
   const [isSearching, setIsSearching] = useState(false);
   const [isLocating, setIsLocating] = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const isFromSearch = useRef(false);
-
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      try {
-        const json = JSON.parse(event.target?.result as string);
-        if (onImportProject) {
-          onImportProject(json);
-        }
-      } catch (error) {
-        console.error("Error parsing JSON:", error);
-        alert("Помилка при читанні файлу. Переконайтеся, що це коректний JSON файл проекту.");
-      }
-    };
-    reader.readAsText(file);
-    
-    // Reset input so the same file can be selected again if needed
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
-  };
 
   // Sync internal search query if location.address changes externally
   useEffect(() => {
@@ -158,13 +131,11 @@ export function Step1Location({
         const data = await res.json();
         
         if (data && data.daily) {
-          // shortwave_radiation_sum is in MJ/m². 1 MJ = 0.277778 kWh.
           const solarSumMJ = data.daily.shortwave_radiation_sum.reduce((a: number, b: number) => a + (b || 0), 0);
           const solarKWh = Math.round(solarSumMJ * 0.277778);
           
           const precipSum = Math.round(data.daily.precipitation_sum.reduce((a: number, b: number) => a + (b || 0), 0));
           
-          // wind_speed_10m_max is in km/h. Convert to m/s and estimate mean (~50% of max for a rough daily average)
           const windMaxSum = data.daily.wind_speed_10m_max.reduce((a: number, b: number) => a + (b || 0), 0);
           const windDays = data.daily.wind_speed_10m_max.filter((v: number) => v !== null).length || 365;
           const windMeanMs = Number(((windMaxSum / windDays) / 3.6 * 0.5).toFixed(1));
@@ -230,31 +201,6 @@ export function Step1Location({
             Вкажіть місцезнаходження для отримання точних кліматичних даних (інсоляція, швидкість вітру).
           </p>
         </div>
-        
-        {onImportProject && (
-          <div className="flex flex-col items-end gap-1">
-            <input 
-              type="file" 
-              accept=".json" 
-              className="hidden" 
-              ref={fileInputRef}
-              onChange={handleFileUpload}
-            />
-            <button 
-              onClick={() => fileInputRef.current?.click()}
-              className="group relative flex items-center gap-2 px-4 py-2.5 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/30 rounded-xl hover:bg-emerald-100 dark:hover:bg-emerald-500/20 transition-all shadow-sm text-sm font-medium"
-            >
-              <Upload className="w-4 h-4" />
-              Завантажити збережений проект
-              
-              {/* Tooltip */}
-              <div className="absolute right-0 top-full mt-2 w-64 p-2.5 text-[11px] leading-normal text-white bg-slate-900 dark:bg-slate-800 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 shadow-xl border border-slate-700 text-left font-normal">
-                Завантажте файл .json з вашого комп&apos;ютера, щоб відновити попередні розрахунки та налаштування обладнання.
-                <div className="absolute bottom-full right-4 -mb-1 border-4 border-transparent border-b-slate-900 dark:border-b-slate-800"></div>
-              </div>
-            </button>
-          </div>
-        )}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -338,7 +284,7 @@ export function Step1Location({
                   type="text"
                   className="block w-full px-4 py-3 border border-slate-200 dark:border-slate-600 rounded-xl bg-slate-50 dark:bg-slate-900/50 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all"
                   placeholder="Наприклад: балкон, дах гаража, дах будинку..."
-                  value={location.installationSite}
+                  value={location.installationSite || ''}
                   onChange={(e) => setLocation(prev => ({ ...prev, installationSite: e.target.value }))}
                 />
                 <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">

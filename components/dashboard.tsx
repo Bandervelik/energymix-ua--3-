@@ -52,6 +52,7 @@ export function Dashboard() {
     coordinates: [50.4501, 30.5234] as [number, number],
     installationSite: ''
   });
+  
   const [equipment, setEquipment] = useState({
     solar: 0,
     solarTilt: 35,
@@ -96,11 +97,13 @@ export function Dashboard() {
     battery: 0,
     batteryDod: 80,
   });
+  
   const [consumption, setConsumption] = useState({
     annual: 12000,
     profileType: 'residential',
     customProfile: Array(24).fill(1.5), // Default 1.5 kW for all hours
   });
+  
   const [climateData, setClimateData] = useState({
     solar: 1150,
     wind: 4.2,
@@ -184,10 +187,16 @@ export function Dashboard() {
                 exit={{ opacity: 0, y: -10 }}
                 transition={{ duration: 0.2 }}
               >
-                {currentStep === 1 && <Step1Location location={location} setLocation={setLocation} climateData={climateData} setClimateData={setClimateData} onImportProject={handleImportProject} />}
+                {/* ВИПРАВЛЕНО: Прибрано onImportProject з виклику Step1Location */}
+                {currentStep === 1 && <Step1Location location={location} setLocation={setLocation} climateData={climateData} setClimateData={setClimateData} />}
+                
                 {currentStep === 2 && <Step2Equipment config={config} setConfig={setConfig} equipment={equipment} setEquipment={setEquipment} />}
+                
                 {currentStep === 3 && <Step3Consumption consumption={consumption} setConsumption={setConsumption} />}
-                {currentStep === 4 && <Step4Results config={config} equipment={equipment} consumption={consumption} climateData={climateData} />}
+                
+                {/* ВИПРАВЛЕНО: Прибрано climateData, додано location */}
+                {currentStep === 4 && <Step4Results config={config} equipment={equipment} consumption={consumption} location={location} />}
+                
                 {currentStep === 5 && <Step5Report config={config} equipment={equipment} consumption={consumption} location={location} climateData={climateData} />}
               </motion.div>
             </AnimatePresence>
