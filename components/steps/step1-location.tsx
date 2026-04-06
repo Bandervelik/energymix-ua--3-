@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { MapPin, Search, Cloud, Sun, Wind, Droplet, Loader2, Navigation, Info } from 'lucide-react';
+import { MapPin, Search, Cloud, Sun, Wind, Droplet, Loader2, Navigation, Info, Upload } from 'lucide-react';
+import { motion } from 'motion/react';
 import dynamic from 'next/dynamic';
 
 const MapPicker = dynamic(() => import('../map-picker'), { 
@@ -17,13 +18,14 @@ export function Step1Location({
   location, 
   setLocation,
   climateData,
-  setClimateData
+  setClimateData,
+  onImportProject
 }: { 
-  // ВИПРАВЛЕНО: Прибрали знак питання (?) біля installationSite
   location: { address: string, coordinates: [number, number], installationSite: string }, 
   setLocation: React.Dispatch<React.SetStateAction<{ address: string, coordinates: [number, number], installationSite: string }>>,
   climateData: { solar: number, wind: number, precipitation: number, isLoading: boolean },
-  setClimateData: React.Dispatch<React.SetStateAction<{ solar: number, wind: number, precipitation: number, isLoading: boolean }>>
+  setClimateData: React.Dispatch<React.SetStateAction<{ solar: number, wind: number, precipitation: number, isLoading: boolean }>>,
+  onImportProject?: (data: any) => void
 }) {
   const [searchQuery, setSearchQuery] = useState(location.address);
   const [suggestions, setSuggestions] = useState<any[]>([]);
@@ -31,14 +33,37 @@ export function Step1Location({
   const [isSearching, setIsSearching] = useState(false);
   const [isLocating, setIsLocating] = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const isFromSearch = useRef(false);
 
-  // Sync internal search query if location.address changes externally
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const json = JSON.parse(event.target?.result as string);
+        if (onImportProject) {
+          onImportProject(json);
+        }
+      } catch (error) {
+        console.error("Error parsing JSON:", error);
+        alert("Помилка при читанні файлу. Переконайтеся, що це коректний JSON файл проекту.");
+      }
+    };
+    reader.readAsText(file);
+    
+    // Reset input so the same file can be selected again if needed
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
   useEffect(() => {
     setSearchQuery(location.address);
   }, [location.address]);
 
-  // Handle click outside to close suggestions
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (wrapperRef.current && !wrapperRef.current.contains(event.target as Node)) {
@@ -49,7 +74,6 @@ export function Step1Location({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Debounced search for suggestions
   useEffect(() => {
     const delayDebounceFn = setTimeout(async () => {
       if (searchQuery && searchQuery !== location.address && showSuggestions) {
@@ -83,7 +107,6 @@ export function Step1Location({
     return () => clearTimeout(delayDebounceFn);
   }, [searchQuery, location.address, showSuggestions]);
 
-  // Reverse geocoding when coordinates change (e.g. from map click)
   useEffect(() => {
     if (isFromSearch.current) {
       isFromSearch.current = false;
@@ -94,15 +117,30 @@ export function Step1Location({
       try {
         const lat = location.coordinates[0];
         const lon = location.coordinates[1];
-        const url = `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=uk`;
-        const res = await fetch(url);
-        if (!res.ok) {
-          throw new Error(`Network response was not ok: ${res.status}`);
+        
+        let res;
+        try {
+          const nominatimUrl = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}&accept-language=uk`;
+          res = await fetch(nominatimUrl);
+        } catch (e) {
+          const bdcUrl = `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=uk`;
+          res = await fetch(bdcUrl);
         }
+        
+        if (!res || !res.ok) {
+          throw new Error(`Network response was not ok`);
+        }
+        
         const data = await res.json();
-        const parts = [data.locality, data.city, data.principalSubdivision, data.countryName].filter(Boolean);
-        const uniqueParts = Array.from(new Set(parts));
-        const display_name = uniqueParts.join(', ') || 'Unknown location';
+        let display_name = '';
+        
+        if (data.display_name) {
+          display_name = data.display_name;
+        } else {
+          const parts = [data.locality, data.city, data.principalSubdivision, data.countryName].filter(Boolean);
+          const uniqueParts = Array.from(new Set(parts));
+          display_name = uniqueParts.join(', ');
+        }
         
         if (display_name) {
           setSearchQuery(display_name);
@@ -117,13 +155,11 @@ export function Step1Location({
     return () => clearTimeout(timeout);
   }, [location.coordinates, setLocation]);
 
-  // Fetch climate data when coordinates change
   useEffect(() => {
     const fetchClimate = async () => {
       setClimateData(prev => ({ ...prev, isLoading: true }));
       try {
         const [lat, lon] = location.coordinates;
-        // Fetching 2023 data as a full typical year
         const res = await fetch(`https://archive-api.open-meteo.com/v1/archive?latitude=${lat}&longitude=${lon}&start_date=2023-01-01&end_date=2023-12-31&daily=shortwave_radiation_sum,precipitation_sum,wind_speed_10m_max&timezone=auto`);
         
         if (!res.ok) throw new Error("Failed to fetch climate data");
@@ -176,7 +212,7 @@ export function Step1Location({
     setIsLocating(true);
     navigator.geolocation.getCurrentPosition(
       (position) => {
-        isFromSearch.current = false; // Trigger reverse geocoding
+        isFromSearch.current = false;
         setLocation(prev => ({
           ...prev,
           coordinates: [position.coords.latitude, position.coords.longitude]
@@ -201,10 +237,33 @@ export function Step1Location({
             Вкажіть місцезнаходження для отримання точних кліматичних даних (інсоляція, швидкість вітру).
           </p>
         </div>
+        
+        {onImportProject && (
+          <div className="flex flex-col items-end gap-1">
+            <input 
+              type="file" 
+              accept=".json" 
+              className="hidden" 
+              ref={fileInputRef}
+              onChange={handleFileUpload}
+            />
+            <button 
+              onClick={() => fileInputRef.current?.click()}
+              className="group relative flex items-center gap-2 px-4 py-2.5 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/30 rounded-xl hover:bg-emerald-100 dark:hover:bg-emerald-500/20 transition-all shadow-sm text-sm font-medium"
+            >
+              <Upload className="w-4 h-4" />
+              Завантажити збережений проект
+              
+              <div className="absolute right-0 top-full mt-2 w-64 p-2.5 text-[11px] leading-normal text-white bg-slate-900 dark:bg-slate-800 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 shadow-xl border border-slate-700 text-left font-normal">
+                Завантажте файл .json з вашого комп&apos;ютера, щоб відновити попередні розрахунки та налаштування обладнання.
+                <div className="absolute bottom-full right-4 -mb-1 border-4 border-transparent border-b-slate-900 dark:border-b-slate-800"></div>
+              </div>
+            </button>
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Search & Map */}
         <div className="lg:col-span-2 space-y-6 flex flex-col">
           <div className="relative z-10 bg-white dark:bg-slate-800/50 rounded-2xl p-6 border border-slate-200 dark:border-slate-700/50 shadow-sm backdrop-blur-xl hover:z-20 transition-all duration-200">
             <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
@@ -239,7 +298,6 @@ export function Step1Location({
                 )}
               </button>
               
-              {/* Dropdown Suggestions */}
               {showSuggestions && (searchQuery.length > 2) && (
                 <div className="absolute z-[500] w-full mt-2 bg-white dark:bg-slate-800 rounded-xl shadow-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
                   {isSearching ? (
@@ -284,7 +342,7 @@ export function Step1Location({
                   type="text"
                   className="block w-full px-4 py-3 border border-slate-200 dark:border-slate-600 rounded-xl bg-slate-50 dark:bg-slate-900/50 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all"
                   placeholder="Наприклад: балкон, дах гаража, дах будинку..."
-                  value={location.installationSite || ''}
+                  value={location.installationSite}
                   onChange={(e) => setLocation(prev => ({ ...prev, installationSite: e.target.value }))}
                 />
                 <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
@@ -294,21 +352,18 @@ export function Step1Location({
             </div>
           </div>
 
-          {/* Map */}
           <div className="relative rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-700/50 shadow-sm bg-slate-100 dark:bg-slate-800 min-h-[400px] flex-1 z-0">
             <MapPicker 
               coordinates={location.coordinates} 
               setCoordinates={(c) => setLocation({ ...location, coordinates: c })} 
             />
             
-            {/* Coordinates Overlay */}
             <div className="absolute bottom-4 left-4 z-[400] bg-white/90 dark:bg-slate-800/90 backdrop-blur px-3 py-2 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700 text-xs font-mono text-slate-600 dark:text-slate-300 pointer-events-none">
               {location.coordinates[0].toFixed(4)}, {location.coordinates[1].toFixed(4)}
             </div>
           </div>
         </div>
 
-        {/* Details */}
         <div className="lg:col-span-1 space-y-6">
           <div className="bg-white dark:bg-slate-800/50 rounded-2xl p-6 border border-slate-200 dark:border-slate-700/50 shadow-sm backdrop-blur-xl space-y-4">
             <h3 className="text-sm font-semibold text-slate-900 dark:text-white flex items-center gap-2">

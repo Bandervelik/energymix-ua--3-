@@ -1,145 +1,206 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { 
-  BarChart3, TrendingUp, DollarSign, Leaf, Zap, 
-  Loader2, AlertCircle, Sun, Wind, Droplet, Info 
-} from 'lucide-react';
-import { 
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, 
-  Tooltip, Legend, ResponsiveContainer, Line 
-} from 'recharts';
+import React from 'react';
+import { BarChart3, TrendingUp, DollarSign, Leaf, Zap, Info } from 'lucide-react';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line } from 'recharts';
+import { formatPayback } from '@/lib/utils';
+
 import { SystemConfig } from '../dashboard';
-import { formatPayback } from '@/lib/utils'; // Залиш цей імпорт, якщо він у тебе є
 
-// Гнучкий інтерфейс, який приймає всі розширені поля equipment та location
-interface Step4ResultsProps {
-  config: SystemConfig;
-  location: any;
-  equipment: any;
-  consumption: any;
-}
+export function Step4Results({ 
+  config, 
+  equipment, 
+  consumption,
+  climateData
+}: { 
+  config: SystemConfig,
+  equipment: { 
+    solar: number, solarTilt: number, solarAzimuth: number, solarLosses: number,
+    solarPanelPreset: string, solarPanelPower: number, solarPanelPrice: number,
+    solarPanelLength: number, solarPanelWidth: number, solarPanelsCount: number, solarCellType: string, solarTempCoeffPmax: number, solarDegradation: number,
+    windCount: number, windRotorDiameter: number, windHubHeight: number, windTsr: number, windCp: number,
+    windBladesCount: number, windBladePitch: number,
+    hydroCount: number, hydroTurbineType: string, hydroRunnerDiameter: number, hydroPenstockLength: number, hydroPenstockDiameter: number, hydroPenstockMaterial: string, hydroResidualFlow: number, hydroHead: number, hydroFlow: number,
+    batteryModulesCount: number, batteryModuleCapacity: number, battery: number, batteryDod: number
+  },
+  consumption: { 
+    annual: number, 
+    profileType: string, 
+    customProfile: number[],
+    tariffCategory: string,
+    householdTariff: string,
+    commercialTariff: string
+  },
+  climateData: { solar: number, wind: number, precipitation: number }
+}) {
+  const monthlyData = Array.from({ length: 12 }).map((_, i) => {
+    const monthNames = ['Січень', 'Лютий', 'Березень', 'Квітень', 'Травень', 'Червень', 'Липень', 'Серпень', 'Вересень', 'Жовтень', 'Листопад', 'Грудень'];
+    
+    const solarDistribution = [0.04, 0.06, 0.09, 0.11, 0.13, 0.14, 0.14, 0.12, 0.09, 0.05, 0.02, 0.01];
+    const tiltEfficiency = Math.cos((equipment.solarTilt - 35) * Math.PI / 180);
+    const azimuthEfficiency = Math.cos((equipment.solarAzimuth - 180) * Math.PI / 180);
+    
+    const monthlyTemps = [-2, 0, 5, 12, 18, 22, 25, 24, 18, 11, 4, 0];
+    const cellTemp = monthlyTemps[i] + 25;
+    const tempLoss = cellTemp > 25 ? (cellTemp - 25) * (equipment.solarTempCoeffPmax / 100) : 0;
+    
+    const solarEfficiency = Math.max(0.1, tiltEfficiency * azimuthEfficiency * (1 - equipment.solarLosses / 100) * (1 + tempLoss));
+    const solarGen = config.solar ? Math.round(equipment.solar * climateData.solar * solarDistribution[i] * solarEfficiency) : 0;
+    
+    const windDistribution = [1.2, 1.1, 1.0, 0.9, 0.8, 0.8, 0.8, 0.8, 0.9, 1.0, 1.3, 1.4];
+    const heightModifier = Math.log(equipment.windHubHeight / 0.1) / Math.log(10 / 0.1);
+    const localWindSpeed = climateData.wind * heightModifier * windDistribution[i];
+    
+    const rho = 1.225;
+    const sweptArea = Math.PI * Math.pow(equipment.windRotorDiameter / 2, 2);
+    
+    const bladesModifier = equipment.windBladesCount === 3 ? 1 : 0.95;
+    const pitchModifier = Math.max(0.5, 1 - Math.abs(equipment.windBladePitch) * 0.015);
+    
+    const windPowerKw = (0.5 * rho * sweptArea * Math.pow(localWindSpeed, 3) * equipment.windCp * bladesModifier * pitchModifier) / 1000;
+    const windGen = config.wind ? Math.round(windPowerKw * 730 * equipment.windCount) : 0;
+    
+    const cValues: Record<string, number> = { pvc: 150, steel: 120, concrete: 100 };
+    const cFactor = cValues[equipment.hydroPenstockMaterial] || 120;
+    const flowM3s = equipment.hydroFlow / 1000;
+    let headLoss = 0;
+    if (flowM3s > 0 && equipment.hydroPenstockDiameter > 0) {
+      headLoss = 10.67 * equipment.hydroPenstockLength * Math.pow(flowM3s, 1.852) / (Math.pow(cFactor, 1.852) * Math.pow(equipment.hydroPenstockDiameter, 4.87));
+    }
+    const netHead = Math.max(0, equipment.hydroHead - headLoss);
+    
+    const usableFlowLps = Math.max(0, equipment.hydroFlow - equipment.hydroResidualFlow);
+    const usableFlowM3s = usableFlowLps / 1000;
+    
+    const turbineEfficiencies: Record<string, number> = { pelton: 0.9, kaplan: 0.92, francis: 0.89 };
+    const hydroEfficiency = turbineEfficiencies[equipment.hydroTurbineType] || 0.85;
+    
+    const hydroPowerKw = (netHead * usableFlowM3s * 9.81 * hydroEfficiency);
+    
+    const maxPowerByRunner = Math.pow(equipment.hydroRunnerDiameter, 2) * 500;
+    const actualHydroKw = Math.min(hydroPowerKw, maxPowerByRunner);
+    
+    const hydroGen = config.hydro ? Math.round(actualHydroKw * 730 * equipment.hydroCount) : 0;
+    
+    const baseCons = consumption.annual / 12;
+    const consVariation = [1.2, 1.1, 1.0, 0.9, 0.8, 0.7, 0.8, 0.8, 0.9, 1.0, 1.1, 1.2][i];
+    const monthlyCons = Math.round(baseCons * consVariation);
 
-export function Step4Results({ config, location, equipment, consumption }: Step4ResultsProps) {
-  const [results, setResults] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+    return {
+      name: monthNames[i],
+      solar: solarGen,
+      wind: windGen,
+      hydro: hydroGen,
+      consumption: monthlyCons
+    };
+  });
 
-  useEffect(() => {
-    async function fetchData() {
-      try {
-        setLoading(true);
-        setError(null);
+  const getAverageTariff = () => {
+    if (consumption.tariffCategory === 'commercial') {
+      switch (consumption.commercialTariff) {
+        case 'small': return 5.0;
+        case 'medium': return 6.0;
+        case 'large': return 7.0;
+        default: return 5.0;
+      }
+    } else {
+      const baseTariff = 4.32;
+      if (consumption.householdTariff === 'fixed') return baseTariff;
+      
+      const residentialProfile = [0.5, 0.4, 0.4, 0.4, 0.4, 0.5, 1.0, 2.0, 2.5, 2.0, 1.8, 1.8, 1.8, 1.8, 1.8, 1.9, 2.0, 2.5, 3.0, 3.5, 3.5, 3.0, 2.0, 1.0];
+      const commercialProfile = [0.8, 0.8, 0.8, 0.8, 0.8, 1.0, 2.0, 3.5, 4.5, 5.0, 5.5, 5.5, 5.5, 5.5, 5.5, 5.0, 4.5, 3.5, 2.0, 1.5, 1.0, 0.8, 0.8, 0.8];
+      const industrialProfile = [3.0, 3.0, 3.0, 3.0, 3.0, 4.0, 5.0, 6.0, 6.0, 6.5, 6.5, 6.5, 6.5, 6.5, 6.5, 6.0, 6.0, 5.0, 4.0, 4.0, 3.5, 3.0, 3.0, 3.0];
+      
+      let profile = consumption.customProfile;
+      if (consumption.profileType === 'residential') profile = residentialProfile;
+      else if (consumption.profileType === 'commercial') profile = commercialProfile;
+      else if (consumption.profileType === 'industrial') profile = industrialProfile;
+      
+      let totalWeight = 0;
+      let weightedTariffSum = 0;
+      
+      for (let hour = 0; hour < 24; hour++) {
+        const weight = profile[hour] || 1;
+        totalWeight += weight;
         
-        const response = await fetch('http://127.0.0.1:8000/api/simulate', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ location, config, equipment, consumption })
-        });
-
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.detail || 'Помилка розрахунку на сервері');
+        let multiplier = 1;
+        if (consumption.householdTariff === 'two-zone') {
+          if (hour >= 23 || hour < 7) multiplier = 0.5;
+        } else if (consumption.householdTariff === 'three-zone') {
+          if (hour >= 23 || hour < 7) multiplier = 0.4;
+          else if ((hour >= 8 && hour < 11) || (hour >= 20 && hour < 22)) multiplier = 1.5;
         }
         
-        const json = await response.json();
-        setResults(json.data);
-      } catch (err: any) {
-        setError(err.message === 'Failed to fetch' 
-          ? 'Бекенд не відповідає. Переконайтеся, що Python-сервер (EcoHybridPlanner.exe) запущено.' 
-          : err.message);
-      } finally {
-        setLoading(false);
+        weightedTariffSum += baseTariff * multiplier * weight;
       }
+      
+      return totalWeight > 0 ? weightedTariffSum / totalWeight : baseTariff;
     }
-    fetchData();
-  }, [config, location, equipment, consumption]);
+  };
 
-  if (loading) return (
-    <div className="flex flex-col items-center justify-center h-96 gap-6 bg-white dark:bg-slate-800/50 rounded-3xl border border-slate-200 dark:border-slate-700 shadow-sm">
-      <Loader2 className="w-12 h-12 text-emerald-500 animate-spin" />
-      <div className="text-center">
-        <p className="text-lg font-semibold text-slate-900 dark:text-white">Аналіз метеоданих та розрахунок...</p>
-        <p className="text-slate-500 text-sm">Python-ядро обробляє 8760 годинних записів погоди</p>
-      </div>
-    </div>
-  );
+  const averageTariff = getAverageTariff();
 
-  if (error) return (
-    <div className="p-8 text-red-600 bg-red-50 dark:bg-red-900/10 rounded-2xl border border-red-200 dark:border-red-800 flex items-start gap-4">
-      <AlertCircle className="w-6 h-6 flex-shrink-0" />
-      <div>
-        <h3 className="font-bold">Помилка запиту</h3>
-        <p className="text-sm">{error}</p>
-      </div>
-    </div>
-  );
-
-  // Підготовка даних для графіка (з бекенда або імітація розподілу)
-  const chartData = results.monthly_data || [
-    { name: 'Січ', solar: results["Total Annual Solar (kWh)"] * 0.03, wind: results["Total Annual Wind (kWh)"] * 0.12, hydro: results["Total Annual Hydro (kWh)"] / 12, consumption: consumption.annual / 12 * 1.2 },
-    { name: 'Бер', solar: results["Total Annual Solar (kWh)"] * 0.08, wind: results["Total Annual Wind (kWh)"] * 0.10, hydro: results["Total Annual Hydro (kWh)"] / 12, consumption: consumption.annual / 12 * 1.0 },
-    { name: 'Чер', solar: results["Total Annual Solar (kWh)"] * 0.15, wind: results["Total Annual Wind (kWh)"] * 0.06, hydro: results["Total Annual Hydro (kWh)"] / 12, consumption: consumption.annual / 12 * 0.7 },
-    { name: 'Вер', solar: results["Total Annual Solar (kWh)"] * 0.09, wind: results["Total Annual Wind (kWh)"] * 0.08, hydro: results["Total Annual Hydro (kWh)"] / 12, consumption: consumption.annual / 12 * 0.9 },
-    { name: 'Гру', solar: results["Total Annual Solar (kWh)"] * 0.02, wind: results["Total Annual Wind (kWh)"] * 0.14, hydro: results["Total Annual Hydro (kWh)"] / 12, consumption: consumption.annual / 12 * 1.3 },
-  ];
-
-  const totalGen = results["Total Annual Generation (kWh)"] || 0;
-  const autonomyPercent = Math.min(100, Math.round((totalGen / (consumption.annual || 1)) * 100));
-  const savings = Math.round(Math.min(totalGen, consumption.annual) * 4.32);
-  const co2Reduction = (totalGen * 0.4 / 1000).toFixed(1);
-
-  // Приблизний підрахунок CAPEX (як у твоєму коді, але з урахуванням того, що поля можуть бути 0)
-  const capex = (config.solar ? (equipment.solarPanelsCount || 0) * (equipment.solarPanelPrice || 320) : 0) + 
-                (config.wind ? (equipment.windCount || 0) * (Math.PI * Math.pow((equipment.windRotorDiameter || 3) / 2, 2)) * 300 : 0) + 
-                (config.hydro ? (equipment.hydroCount || 0) * ((equipment.hydroRunnerDiameter || 0.5) * 10000) : 0) + 
-                (config.battery ? (equipment.battery || 0) * 400 : 0);
-
-  // LCOE та Payback
-  const discountRate = 0.08; 
-  const projectLife = 20; 
-  const opexPercent = 0.02; 
-  const degradationFactor = 1 - ((equipment.solarDegradation || 0.5) / 100);
+  const totalGen = monthlyData.reduce((acc, curr) => acc + curr.solar + curr.wind + curr.hydro, 0);
+  const totalCons = monthlyData.reduce((acc, curr) => acc + curr.consumption, 0);
   
-  let npvCost = capex;
+  const autonomyPercent = Math.min(100, Math.round((totalGen / totalCons) * 100));
+  const savings = Math.round(Math.min(totalGen, totalCons) * averageTariff);
+  const co2Reduction = (totalGen * 0.4 / 1000).toFixed(1);
+  
+  const capex = (config.solar ? equipment.solarPanelsCount * (equipment.solarPanelPrice || 320) : 0) + 
+                (config.wind ? equipment.windCount * (Math.PI * Math.pow(equipment.windRotorDiameter / 2, 2)) * 300 : 0) + 
+                (config.hydro ? equipment.hydroCount * (equipment.hydroRunnerDiameter * 10000) : 0) + 
+                (config.battery ? equipment.battery * 400 : 0);
+                
+  const exchangeRate = 41.5;
+  const capexUAH = capex * exchangeRate;
+                
+  const discountRate = 0.08;
+  const projectLife = 20;
+  const opexPercent = 0.02;
+  const degradationFactor = 1 - (equipment.solarDegradation / 100);
+  
+  let npvCost = capexUAH;
   let npvGen = 0;
-  let paybackYears = 0;
-  let cumulativeCashFlow = -capex;
   
   for (let year = 1; year <= projectLife; year++) {
     const annualGen = totalGen * Math.pow(degradationFactor, year - 1);
-    const annualOpex = capex * opexPercent;
+    const annualOpexUAH = capexUAH * opexPercent;
     
-    npvCost += annualOpex / Math.pow(1 + discountRate, year);
+    npvCost += annualOpexUAH / Math.pow(1 + discountRate, year);
     npvGen += annualGen / Math.pow(1 + discountRate, year);
-
-    const annualSavings = Math.min(annualGen, consumption.annual) * 4.32; 
-    const netCashFlow = annualSavings - annualOpex;
-    
-    cumulativeCashFlow += netCashFlow;
-    
-    if (cumulativeCashFlow >= 0 && paybackYears === 0) {
-      paybackYears = year - 1 + (cumulativeCashFlow - netCashFlow) / -netCashFlow;
-    }
   }
   
   const lcoe = npvGen > 0 ? (npvCost / npvGen).toFixed(2) : '0.00';
-  const payback = paybackYears > 0 ? (typeof formatPayback === 'function' ? formatPayback(paybackYears) : `${paybackYears.toFixed(1)} років`) : '>20 років';
+                
+  let paybackYears = 0;
+  let cumulativeCashFlow = -capexUAH;
+  
+  for (let year = 1; year <= projectLife; year++) {
+    const annualGen = totalGen * Math.pow(degradationFactor, year - 1);
+    const annualSavings = Math.min(annualGen, totalCons) * averageTariff;
+    const annualOpexUAH = capexUAH * opexPercent;
+    const netCashFlow = annualSavings - annualOpexUAH;
+    
+    cumulativeCashFlow += netCashFlow;
+    
+    if (cumulativeCashFlow >= 0) {
+      paybackYears = year - 1 + (cumulativeCashFlow - netCashFlow) / -netCashFlow;
+      break;
+    }
+  }
+  
+  const payback = formatPayback(paybackYears);
 
   return (
     <div className="space-y-8">
       <div className="flex flex-col gap-2">
-        <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Результати моделювання</h2>
-        <p className="text-emerald-600 dark:text-emerald-400 text-sm font-medium flex items-center gap-2">
-          <span className="relative flex h-2 w-2">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-            <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-          </span>
-          Симуляцію завершено успішно (Python Backend)
+        <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Результати розрахунку</h2>
+        <p className="text-slate-500 dark:text-slate-400">
+          Оцінка ефективності, економічної вигоди та екологічного впливу вашої гібридної системи.
         </p>
       </div>
 
-      {/* KPIs */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <KpiCard 
           title="Річна генерація" 
@@ -157,7 +218,7 @@ export function Step4Results({ config, location, equipment, consumption }: Step4
           icon={DollarSign} 
           color="blue" 
           trend={`~${Math.round(savings / 12).toLocaleString()} ₴/міс`}
-          tooltip="Сума коштів, яку ви заощадите на оплаті рахунків за електроенергію."
+          tooltip="Сума коштів, яку ви заощадите на оплаті рахунків за електроенергію за поточним тарифом."
         />
         <KpiCard 
           title="Термін окупності" 
@@ -165,17 +226,17 @@ export function Step4Results({ config, location, equipment, consumption }: Step4
           unit="" 
           icon={TrendingUp} 
           color="amber" 
-          trend="IRR: ~18%"
-          tooltip="Час, за який економія повністю покриє початкові витрати на обладнання."
+          trend={capexUAH > 0 ? `ROI: ~${Math.round((savings / capexUAH) * 100)}% річних` : ""}
+          tooltip="Орієнтовний час, за який економія повністю покриє початкові витрати на обладнання."
         />
         <KpiCard 
           title="Зниження CO₂" 
           value={co2Reduction} 
-          unit="тонн" 
+          unit="тонн/рік" 
           icon={Leaf} 
           color="sky" 
           trend="Екологічно чисто"
-          tooltip="Обсяг викидів вуглекислого газу, якому ви запобігаєте."
+          tooltip="Обсяг викидів вуглекислого газу, якому ви запобігаєте, використовуючи відновлювану енергію."
         />
       </div>
 
@@ -185,7 +246,7 @@ export function Step4Results({ config, location, equipment, consumption }: Step4
           <div className="flex items-center justify-between mb-6">
             <h3 className="text-sm font-semibold text-slate-900 dark:text-white flex items-center gap-2">
               <BarChart3 className="w-4 h-4 text-emerald-500" />
-              Баланс генерації та споживання
+              Генерація vs Споживання (Річний профіль)
             </h3>
             <div className="text-xs font-medium text-slate-500 dark:text-slate-400">
               кВт·год
@@ -193,12 +254,12 @@ export function Step4Results({ config, location, equipment, consumption }: Step4
           </div>
           <div className="h-[350px] w-full">
             <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={350}>
-              <BarChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+              <BarChart data={monthlyData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#334155" opacity={0.2} />
                 <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 12 }} dy={10} />
                 <YAxis axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 12 }} />
                 <Tooltip 
-                  formatter={(value: any, name: any) => [`${Math.round(value)} кВт·год`, name]}
+                  formatter={(value: any, name: any) => [`${value} кВт·год`, name]}
                   cursor={{ fill: 'rgba(15, 23, 42, 0.05)' }}
                   contentStyle={{ backgroundColor: 'rgba(15, 23, 42, 0.9)', border: 'none', borderRadius: '8px', color: '#fff' }}
                 />
@@ -212,7 +273,6 @@ export function Step4Results({ config, location, equipment, consumption }: Step4
           </div>
         </div>
 
-        {/* Financials & Gauge */}
         <div className="lg:col-span-1 space-y-6">
           <div className="bg-white dark:bg-slate-800/50 rounded-2xl p-6 border border-slate-200 dark:border-slate-700/50 shadow-sm backdrop-blur-xl flex flex-col items-center justify-center text-center">
             <h3 className="text-sm font-semibold text-slate-900 dark:text-white mb-6 self-start">
@@ -236,7 +296,7 @@ export function Step4Results({ config, location, equipment, consumption }: Step4
             </div>
             
             <p className="text-sm text-slate-600 dark:text-slate-300">
-              Ваша система покриває {autonomyPercent}% річних потреб.
+              Ваша система покриває {autonomyPercent}% річних потреб в електроенергії.
             </p>
           </div>
 
@@ -246,67 +306,18 @@ export function Step4Results({ config, location, equipment, consumption }: Step4
             </h3>
             <div className="space-y-4">
               <div className="flex justify-between items-center pb-3 border-b border-slate-100 dark:border-slate-700/50">
-                <span className="text-sm text-slate-600 dark:text-slate-400">CAPEX (Витрати)</span>
+                <span className="text-sm text-slate-600 dark:text-slate-400">Капітальні витрати (CAPEX)</span>
                 <span className="font-mono font-medium text-slate-900 dark:text-white">{capex > 0 ? `$${capex.toLocaleString()}` : '0'}</span>
               </div>
               <div className="flex justify-between items-center pb-3 border-b border-slate-100 dark:border-slate-700/50">
-                <span className="text-sm text-slate-600 dark:text-slate-400">LCOE</span>
+                <span className="text-sm text-slate-600 dark:text-slate-400">LCOE (Вартість енергії)</span>
                 <span className="font-mono font-medium text-emerald-500">{lcoe} ₴/кВт·год</span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-sm text-slate-600 dark:text-slate-400">Тариф мережі</span>
-                <span className="font-mono font-medium text-slate-900 dark:text-white">4.32 ₴/кВт·год</span>
+                <span className="text-sm text-slate-600 dark:text-slate-400">Тариф мережі (Поточний)</span>
+                <span className="font-mono font-medium text-slate-900 dark:text-white">{averageTariff.toFixed(2)} ₴/кВт·год</span>
               </div>
             </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Analysis & Tips Section */}
-      <div className="bg-white dark:bg-slate-800/50 rounded-2xl p-6 border border-slate-200 dark:border-slate-700/50 shadow-sm backdrop-blur-xl mt-6">
-        <h3 className="text-lg font-semibold text-slate-900 dark:text-white flex items-center gap-2 mb-6">
-          <Info className="w-5 h-5 text-blue-500" />
-          Аналіз результатів та поради
-        </h3>
-        
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-          <div className="space-y-4">
-            <h4 className="font-medium text-slate-900 dark:text-white border-b border-slate-100 dark:border-slate-700 pb-2">Як розуміти показники?</h4>
-            <ul className="space-y-3 text-sm text-slate-600 dark:text-slate-400">
-              <li><strong className="text-slate-900 dark:text-slate-300">LCOE:</strong> Показує собівартість 1 кВт·год. Якщо LCOE нижче за тариф мережі (4.32 ₴), система є економічно вигідною.</li>
-              <li><strong className="text-slate-900 dark:text-slate-300">Окупність:</strong> Час, за який економія покриє інвестиції (CAPEX).</li>
-              <li><strong className="text-slate-900 dark:text-slate-300">Автономність:</strong> Відсоток вашого споживання, який покривається власною генерацією.</li>
-            </ul>
-          </div>
-          
-          <div className="space-y-4">
-            <h4 className="font-medium text-slate-900 dark:text-white border-b border-slate-100 dark:border-slate-700 pb-2">Оцінка вашої системи</h4>
-            <ul className="space-y-3 text-sm">
-              {Number(lcoe) < 4.32 ? (
-                <li className="flex gap-2 text-emerald-600 dark:text-emerald-400">
-                  <span className="shrink-0">✅</span>
-                  <span>Ваш LCOE ({lcoe} ₴) нижчий за тариф. Проект доцільний!</span>
-                </li>
-              ) : (
-                <li className="flex gap-2 text-amber-600 dark:text-amber-400">
-                  <span className="shrink-0">⚠️</span>
-                  <span>Ваш LCOE ({lcoe} ₴) вищий за тариф. Спробуйте змінити конфігурацію.</span>
-                </li>
-              )}
-              
-              {autonomyPercent < 50 && (
-                <li className="flex gap-2 text-amber-600 dark:text-amber-400">
-                  <span className="shrink-0">💡</span>
-                  <span>Автономність низька ({autonomyPercent}%). Розгляньте збільшення потужності.</span>
-                </li>
-              )}
-              {autonomyPercent >= 100 && (
-                <li className="flex gap-2 text-emerald-600 dark:text-emerald-400">
-                  <span className="shrink-0">🌟</span>
-                  <span>Надлишкова генерація! Надлишок можна продавати.</span>
-                </li>
-              )}
-            </ul>
           </div>
         </div>
       </div>
@@ -323,7 +334,7 @@ function KpiCard({ title, value, unit, icon: Icon, color, trend, tooltip }: any)
   };
 
   return (
-    <div className="bg-white dark:bg-slate-800/50 rounded-2xl p-5 border border-slate-200 dark:border-slate-700/50 shadow-sm backdrop-blur-xl flex flex-col justify-between">
+    <div className="bg-white dark:bg-slate-800/50 rounded-2xl p-5 border border-slate-200 dark:border-slate-700/50 shadow-sm backdrop-blur-xl">
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-3">
           <div className={`p-2 rounded-lg ${colorMap[color]}`}>
@@ -334,8 +345,9 @@ function KpiCard({ title, value, unit, icon: Icon, color, trend, tooltip }: any)
         {tooltip && (
           <div className="relative group/tooltip">
             <Info className="w-4 h-4 text-slate-400 cursor-help hover:text-slate-600 dark:hover:text-slate-300" />
-            <div className="absolute right-0 bottom-full mb-2 w-48 p-2 text-xs text-white bg-slate-900 rounded-lg opacity-0 group-hover/tooltip:opacity-100 pointer-events-none z-50">
+            <div className="absolute right-0 bottom-full mb-2 w-56 p-2.5 text-xs leading-relaxed text-white bg-slate-900 dark:bg-slate-800 rounded-lg opacity-0 group-hover/tooltip:opacity-100 transition-opacity pointer-events-none z-50 shadow-xl">
               {tooltip}
+              <div className="absolute top-full right-1 -mt-1 border-4 border-transparent border-t-slate-900 dark:border-t-slate-800"></div>
             </div>
           </div>
         )}
@@ -344,7 +356,7 @@ function KpiCard({ title, value, unit, icon: Icon, color, trend, tooltip }: any)
         <span className="text-2xl font-bold font-mono text-slate-900 dark:text-white">{value}</span>
         <span className="text-sm font-medium text-slate-500">{unit}</span>
       </div>
-      <div className="text-[10px] font-bold text-emerald-600 bg-emerald-500/10 px-2 py-1 rounded uppercase tracking-wide inline-block w-fit">
+      <div className="text-xs font-medium text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 inline-block px-2 py-1 rounded-md">
         {trend}
       </div>
     </div>

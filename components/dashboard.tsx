@@ -52,7 +52,6 @@ export function Dashboard() {
     coordinates: [50.4501, 30.5234] as [number, number],
     installationSite: ''
   });
-  
   const [equipment, setEquipment] = useState({
     solar: 0,
     solarTilt: 35,
@@ -97,13 +96,14 @@ export function Dashboard() {
     battery: 0,
     batteryDod: 80,
   });
-  
   const [consumption, setConsumption] = useState({
     annual: 12000,
     profileType: 'residential',
-    customProfile: Array(24).fill(1.5), // Default 1.5 kW for all hours
+    customProfile: Array(24).fill(1.5), 
+    tariffCategory: 'household', 
+    householdTariff: 'fixed', 
+    commercialTariff: 'small', 
   });
-  
   const [climateData, setClimateData] = useState({
     solar: 1150,
     wind: 4.2,
@@ -124,9 +124,7 @@ export function Dashboard() {
 
   return (
     <div className="flex h-screen overflow-hidden bg-slate-50 dark:bg-slate-900 transition-colors duration-300">
-      {/* Main Content */}
       <main className="flex-1 flex flex-col h-full overflow-hidden">
-        {/* Header */}
         <header className="h-16 flex items-center justify-between px-4 sm:px-6 lg:px-8 bg-white/50 dark:bg-slate-900/50 backdrop-blur-md border-b border-slate-200 dark:border-slate-800">
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2">
@@ -144,21 +142,22 @@ export function Dashboard() {
           </div>
           
           <div className="flex items-center gap-4">
-            {/* Stepper Desktop */}
             <div className="hidden md:flex items-center space-x-2">
               {steps.map((step, idx) => (
                 <React.Fragment key={step.id}>
-                  <div 
-                    className={`flex items-center justify-center w-8 h-8 rounded-full text-sm font-medium transition-colors ${
+                  <button 
+                    onClick={() => setCurrentStep(step.id)}
+                    aria-label={`Перейти до кроку ${step.id}`}
+                    className={`flex items-center justify-center w-8 h-8 rounded-full text-sm font-medium transition-all cursor-pointer hover:scale-110 ${
                       currentStep === step.id 
                         ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/30' 
                         : currentStep > step.id 
-                          ? 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400'
-                          : 'bg-slate-200 dark:bg-slate-800 text-slate-500 dark:text-slate-400'
+                          ? 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/30'
+                          : 'bg-slate-200 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-300 dark:hover:bg-slate-700'
                     }`}
                   >
                     {step.id}
-                  </div>
+                  </button>
                   {idx < steps.length - 1 && (
                     <div className={`w-8 h-0.5 ${currentStep > step.id ? 'bg-emerald-500/50' : 'bg-slate-200 dark:bg-slate-800'}`} />
                   )}
@@ -176,7 +175,6 @@ export function Dashboard() {
           </div>
         </header>
 
-        {/* Scrollable Content Area */}
         <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
           <div className="max-w-5xl mx-auto">
             <AnimatePresence mode="wait">
@@ -187,21 +185,14 @@ export function Dashboard() {
                 exit={{ opacity: 0, y: -10 }}
                 transition={{ duration: 0.2 }}
               >
-                {/* ВИПРАВЛЕНО: Прибрано onImportProject з виклику Step1Location */}
-                {currentStep === 1 && <Step1Location location={location} setLocation={setLocation} climateData={climateData} setClimateData={setClimateData} />}
-                
+                {currentStep === 1 && <Step1Location location={location} setLocation={setLocation} climateData={climateData} setClimateData={setClimateData} onImportProject={handleImportProject} />}
                 {currentStep === 2 && <Step2Equipment config={config} setConfig={setConfig} equipment={equipment} setEquipment={setEquipment} />}
-                
                 {currentStep === 3 && <Step3Consumption consumption={consumption} setConsumption={setConsumption} />}
-                
-                {/* ВИПРАВЛЕНО: Прибрано climateData, додано location */}
-                {currentStep === 4 && <Step4Results config={config} equipment={equipment} consumption={consumption} location={location} />}
-                
+                {currentStep === 4 && <Step4Results config={config} equipment={equipment} consumption={consumption} climateData={climateData} />}
                 {currentStep === 5 && <Step5Report config={config} equipment={equipment} consumption={consumption} location={location} climateData={climateData} />}
               </motion.div>
             </AnimatePresence>
 
-            {/* Navigation Buttons */}
             <div className="mt-8 flex items-center justify-between pt-6 border-t border-slate-200 dark:border-slate-800">
               <button
                 onClick={prevStep}
@@ -215,18 +206,15 @@ export function Dashboard() {
                 Назад
               </button>
               
-              <button
-                onClick={nextStep}
-                disabled={currentStep === 5}
-                className={`flex items-center gap-2 px-8 py-2.5 rounded-xl font-medium text-white transition-all shadow-lg ${
-                  currentStep === 5
-                    ? 'opacity-50 cursor-not-allowed bg-slate-300 dark:bg-slate-700'
-                    : 'bg-gradient-to-r from-emerald-500 to-blue-500 hover:from-emerald-400 hover:to-blue-400 shadow-emerald-500/25 hover:shadow-emerald-500/40'
-                }`}
-              >
-                {currentStep === 4 ? 'Згенерувати звіт' : 'Далі'}
-                {currentStep !== 5 && <ChevronRight className="w-4 h-4" />}
-              </button>
+              {currentStep < 5 && (
+                <button
+                  onClick={nextStep}
+                  className="flex items-center gap-2 px-8 py-2.5 rounded-xl font-medium text-white transition-all shadow-lg bg-gradient-to-r from-emerald-500 to-blue-500 hover:from-emerald-400 hover:to-blue-400 shadow-emerald-500/25 hover:shadow-emerald-500/40"
+                >
+                  {currentStep === 4 ? 'Згенерувати звіт' : 'Далі'}
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              )}
             </div>
           </div>
         </div>

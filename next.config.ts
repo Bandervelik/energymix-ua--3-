@@ -8,23 +8,20 @@ const nextConfig: NextConfig = {
   typescript: {
     ignoreBuildErrors: false,
   },
-  // Allow access to remote image placeholder.
   images: {
-    unoptimized: true, // <--- ДОДАНО: Це критично важливо для output: 'export'
+    unoptimized: process.env.TAURI_BUILD === 'true',
     remotePatterns: [
       {
         protocol: 'https',
         hostname: 'picsum.photos',
         port: '',
-        pathname: '/**', // This allows any path under the hostname
+        pathname: '/**',
       },
     ],
   },
-  output: 'export', // <--- ЗМІНЕНО: Було 'standalone', тепер 'export'
+  output: process.env.TAURI_BUILD === 'true' ? 'export' : 'standalone',
   transpilePackages: ['motion'],
   webpack: (config, {dev}) => {
-    // HMR is disabled in AI Studio via DISABLE_HMR env var.
-    // Do not modify—file watching is disabled to prevent flickering during agent edits.
     if (dev && process.env.DISABLE_HMR === 'true') {
       config.watchOptions = {
         ignored: /.*/,

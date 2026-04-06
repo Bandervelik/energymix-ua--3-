@@ -78,7 +78,6 @@ function InteractiveCustomChart({
     const x = (clientX - CTM.e) / CTM.a;
     const y = (clientY - CTM.f) / CTM.d;
 
-    // Find closest index
     const relativeX = x - margin.left;
     const index = Math.round((relativeX / chartWidth) * 23);
     
@@ -126,7 +125,6 @@ function InteractiveCustomChart({
         onTouchMove={onMouseMove}
         onTouchEnd={onMouseUp}
       >
-        {/* Grid Lines */}
         {[0, 0.25, 0.5, 0.75, 1].map((p) => (
           <line 
             key={p}
@@ -140,7 +138,6 @@ function InteractiveCustomChart({
           />
         ))}
 
-        {/* X-Axis Labels */}
         {[0, 4, 8, 12, 16, 20, 23].map((i) => {
           const { x } = getCoords(i, 0);
           return (
@@ -156,7 +153,6 @@ function InteractiveCustomChart({
           );
         })}
 
-        {/* Y-Axis Labels */}
         {[0, 0.5, 1].map((p) => {
           const val = (maxValue * (1 - p)).toFixed(1);
           return (
@@ -172,13 +168,11 @@ function InteractiveCustomChart({
           );
         })}
 
-        {/* Area */}
         <path 
           d={areaData}
           className="fill-emerald-500/20"
         />
 
-        {/* Line */}
         <path 
           d={pathData}
           fill="none"
@@ -188,7 +182,6 @@ function InteractiveCustomChart({
           strokeLinecap="round"
         />
 
-        {/* Points/Handles */}
         {points.map((p, i) => (
           <circle 
             key={i}
@@ -199,7 +192,6 @@ function InteractiveCustomChart({
           />
         ))}
 
-        {/* Hover/Drag Indicator */}
         {dragIndex !== null && (
           <g>
             <rect 
@@ -234,8 +226,22 @@ export function Step3Consumption({
   consumption,
   setConsumption
 }: {
-  consumption: { annual: number, profileType: string, customProfile: number[] },
-  setConsumption: React.Dispatch<React.SetStateAction<{ annual: number, profileType: string, customProfile: number[] }>>
+  consumption: { 
+    annual: number, 
+    profileType: string, 
+    customProfile: number[],
+    tariffCategory: string,
+    householdTariff: string,
+    commercialTariff: string
+  },
+  setConsumption: React.Dispatch<React.SetStateAction<{ 
+    annual: number, 
+    profileType: string, 
+    customProfile: number[],
+    tariffCategory: string,
+    householdTariff: string,
+    commercialTariff: string
+  }>>
 }) {
   const getProfileData = () => {
     if (consumption.profileType === 'custom') {
@@ -245,8 +251,6 @@ export function Step3Consumption({
       }));
     }
 
-    // Scale the profile based on annual consumption
-    // This is a simplified scaling for visualization purposes
     const scaleFactor = consumption.annual / 12000; 
     
     let baseProfile = residentialProfile;
@@ -277,8 +281,7 @@ export function Step3Consumption({
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Inputs */}
-        <div className="lg:col-span-1 space-y-6">
+        <div className="lg:col-span-1 space-y-6 order-1">
           <div className="relative bg-white dark:bg-slate-800/50 rounded-2xl p-6 border border-slate-200 dark:border-slate-700/50 shadow-sm backdrop-blur-xl hover:z-20 transition-all duration-200">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-sm font-semibold text-slate-900 dark:text-white flex items-center gap-2">
@@ -302,7 +305,6 @@ export function Step3Consumption({
                   onChange={(e) => {
                     const newAnnual = Number(e.target.value);
                     if (consumption.profileType === 'custom') {
-                      // Scale custom profile to match new annual
                       const scale = newAnnual / consumption.annual;
                       const newProfile = consumption.customProfile.map(v => v * scale);
                       setConsumption(prev => ({ ...prev, annual: newAnnual, customProfile: newProfile }));
@@ -321,6 +323,8 @@ export function Step3Consumption({
               </p>
             </div>
           </div>
+
+
 
           <div className="relative bg-white dark:bg-slate-800/50 rounded-2xl p-6 border border-slate-200 dark:border-slate-700/50 shadow-sm backdrop-blur-xl hover:z-20 transition-all duration-200">
             <div className="flex items-center justify-between mb-4">
@@ -415,8 +419,7 @@ export function Step3Consumption({
           </div>
         </div>
 
-        {/* Chart & Custom Inputs */}
-        <div className="lg:col-span-2 space-y-6">
+        <div className="lg:col-span-2 space-y-6 order-2 lg:row-span-2">
           <div className="bg-white dark:bg-slate-800/50 rounded-2xl p-6 border border-slate-200 dark:border-slate-700/50 shadow-sm backdrop-blur-xl flex flex-col">
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-sm font-semibold text-slate-900 dark:text-white flex items-center gap-2">
@@ -519,6 +522,104 @@ export function Step3Consumption({
               </div>
             </div>
           )}
+        </div>
+
+        <div className="lg:col-span-1 space-y-6 order-3">
+          <div className="relative bg-white dark:bg-slate-800/50 rounded-2xl p-6 border border-slate-200 dark:border-slate-700/50 shadow-sm backdrop-blur-xl hover:z-20 transition-all duration-200">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+                <Zap className="w-4 h-4 text-amber-500" />
+                Тариф на електроенергію
+              </h3>
+            </div>
+            
+            <div className="space-y-4">
+              <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
+                <button
+                  onClick={() => setConsumption(prev => ({ ...prev, tariffCategory: 'household' }))}
+                  className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all ${
+                    consumption.tariffCategory === 'household'
+                      ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm'
+                      : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                  }`}
+                >
+                  Побутовий
+                </button>
+                <button
+                  onClick={() => setConsumption(prev => ({ ...prev, tariffCategory: 'commercial' }))}
+                  className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all ${
+                    consumption.tariffCategory === 'commercial'
+                      ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm'
+                      : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                  }`}
+                >
+                  Комерція
+                </button>
+              </div>
+
+              {consumption.tariffCategory === 'household' ? (
+                <div className="space-y-3">
+                  <label className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-all ${
+                    consumption.householdTariff === 'fixed' ? 'bg-emerald-500/10 border-emerald-500/50' : 'bg-slate-50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-700 hover:border-emerald-500/30'
+                  }`}>
+                    <input type="radio" name="householdTariff" value="fixed" checked={consumption.householdTariff === 'fixed'} onChange={() => setConsumption(prev => ({ ...prev, householdTariff: 'fixed' }))} className="mt-1 text-emerald-500 focus:ring-emerald-500" />
+                    <div>
+                      <p className="text-sm font-medium text-slate-900 dark:text-white">Фіксована ціна</p>
+                      <p className="text-xs text-slate-500 mt-1">4,32 грн/кВт·год</p>
+                    </div>
+                  </label>
+                  <label className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-all ${
+                    consumption.householdTariff === 'two-zone' ? 'bg-emerald-500/10 border-emerald-500/50' : 'bg-slate-50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-700 hover:border-emerald-500/30'
+                  }`}>
+                    <input type="radio" name="householdTariff" value="two-zone" checked={consumption.householdTariff === 'two-zone'} onChange={() => setConsumption(prev => ({ ...prev, householdTariff: 'two-zone' }))} className="mt-1 text-emerald-500 focus:ring-emerald-500" />
+                    <div>
+                      <p className="text-sm font-medium text-slate-900 dark:text-white">Двозонний лічильник</p>
+                      <p className="text-xs text-slate-500 mt-1">День: 4,32 грн, Ніч (23-07): 2,16 грн</p>
+                    </div>
+                  </label>
+                  <label className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-all ${
+                    consumption.householdTariff === 'three-zone' ? 'bg-emerald-500/10 border-emerald-500/50' : 'bg-slate-50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-700 hover:border-emerald-500/30'
+                  }`}>
+                    <input type="radio" name="householdTariff" value="three-zone" checked={consumption.householdTariff === 'three-zone'} onChange={() => setConsumption(prev => ({ ...prev, householdTariff: 'three-zone' }))} className="mt-1 text-emerald-500 focus:ring-emerald-500" />
+                    <div>
+                      <p className="text-sm font-medium text-slate-900 dark:text-white">Тризонний лічильник</p>
+                      <p className="text-xs text-slate-500 mt-1">Пік: 6,48 грн, Напівпік: 4,32 грн, Ніч: 1,73 грн</p>
+                    </div>
+                  </label>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <label className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-all ${
+                    consumption.commercialTariff === 'small' ? 'bg-emerald-500/10 border-emerald-500/50' : 'bg-slate-50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-700 hover:border-emerald-500/30'
+                  }`}>
+                    <input type="radio" name="commercialTariff" value="small" checked={consumption.commercialTariff === 'small'} onChange={() => setConsumption(prev => ({ ...prev, commercialTariff: 'small' }))} className="mt-1 text-emerald-500 focus:ring-emerald-500" />
+                    <div>
+                      <p className="text-sm font-medium text-slate-900 dark:text-white">Малий бізнес</p>
+                      <p className="text-xs text-slate-500 mt-1">~5 грн/кВт·год</p>
+                    </div>
+                  </label>
+                  <label className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-all ${
+                    consumption.commercialTariff === 'medium' ? 'bg-emerald-500/10 border-emerald-500/50' : 'bg-slate-50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-700 hover:border-emerald-500/30'
+                  }`}>
+                    <input type="radio" name="commercialTariff" value="medium" checked={consumption.commercialTariff === 'medium'} onChange={() => setConsumption(prev => ({ ...prev, commercialTariff: 'medium' }))} className="mt-1 text-emerald-500 focus:ring-emerald-500" />
+                    <div>
+                      <p className="text-sm font-medium text-slate-900 dark:text-white">Середній бізнес</p>
+                      <p className="text-xs text-slate-500 mt-1">~6 грн/кВт·год</p>
+                    </div>
+                  </label>
+                  <label className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-all ${
+                    consumption.commercialTariff === 'large' ? 'bg-emerald-500/10 border-emerald-500/50' : 'bg-slate-50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-700 hover:border-emerald-500/30'
+                  }`}>
+                    <input type="radio" name="commercialTariff" value="large" checked={consumption.commercialTariff === 'large'} onChange={() => setConsumption(prev => ({ ...prev, commercialTariff: 'large' }))} className="mt-1 text-emerald-500 focus:ring-emerald-500" />
+                    <div>
+                      <p className="text-sm font-medium text-slate-900 dark:text-white">Великі підприємства</p>
+                      <p className="text-xs text-slate-500 mt-1">~7 грн/кВт·год</p>
+                    </div>
+                  </label>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       </div>
     </div>

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useRef, useState } from 'react';
-import { FileText, Download, Share2, Mail, CheckCircle2, FileJson, Loader2 } from 'lucide-react';
+import { FileText, Download, CheckCircle2, FileJson, Loader2 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { SystemConfig } from '../dashboard';
 import * as htmlToImage from 'html-to-image';
@@ -25,18 +25,23 @@ export function Step5Report({
     hydroCount: number, hydroTurbineType: string, hydroRunnerDiameter: number, hydroPenstockLength: number, hydroPenstockDiameter: number, hydroPenstockMaterial: string, hydroResidualFlow: number, hydroHead: number, hydroFlow: number,
     batteryModulesCount: number, batteryModuleCapacity: number, battery: number, batteryDod: number
   },
-  consumption: { annual: number, profileType: string, customProfile: number[] },
+  consumption: { 
+    annual: number, 
+    profileType: string, 
+    customProfile: number[],
+    tariffCategory: string,
+    householdTariff: string,
+    commercialTariff: string
+  },
   location: { address: string, coordinates: [number, number], installationSite: string },
   climateData: { solar: number, wind: number, precipitation: number }
 }) {
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
   const reportRef = useRef<HTMLDivElement>(null);
 
-  // Generate slightly dynamic data based on inputs
   const monthlyData = Array.from({ length: 12 }).map((_, i) => {
     const monthNames = ['Січень', 'Лютий', 'Березень', 'Квітень', 'Травень', 'Червень', 'Липень', 'Серпень', 'Вересень', 'Жовтень', 'Листопад', 'Грудень'];
     
-    // Advanced Solar Calculation
     const solarDistribution = [0.04, 0.06, 0.09, 0.11, 0.13, 0.14, 0.14, 0.12, 0.09, 0.05, 0.02, 0.01];
     const tiltEfficiency = Math.cos((equipment.solarTilt - 35) * Math.PI / 180);
     const azimuthEfficiency = Math.cos((equipment.solarAzimuth - 180) * Math.PI / 180);
@@ -48,7 +53,6 @@ export function Step5Report({
     const solarEfficiency = Math.max(0.1, tiltEfficiency * azimuthEfficiency * (1 - equipment.solarLosses / 100) * (1 + tempLoss));
     const solarGen = config.solar ? Math.round(equipment.solar * climateData.solar * solarDistribution[i] * solarEfficiency) : 0;
     
-    // Advanced Wind Calculation
     const windDistribution = [1.2, 1.1, 1.0, 0.9, 0.8, 0.8, 0.8, 0.8, 0.9, 1.0, 1.3, 1.4];
     const heightModifier = Math.log(equipment.windHubHeight / 0.1) / Math.log(10 / 0.1);
     const localWindSpeed = climateData.wind * heightModifier * windDistribution[i];
@@ -61,7 +65,6 @@ export function Step5Report({
     const windPowerKw = (0.5 * rho * sweptArea * Math.pow(localWindSpeed, 3) * equipment.windCp * bladesModifier * pitchModifier) / 1000;
     const windGen = config.wind ? Math.round(windPowerKw * 730 * equipment.windCount) : 0;
     
-    // Advanced Hydro Calculation
     const cValues: Record<string, number> = { pvc: 150, steel: 120, concrete: 100 };
     const cFactor = cValues[equipment.hydroPenstockMaterial] || 120;
     const flowM3s = equipment.hydroFlow / 1000;
@@ -96,11 +99,56 @@ export function Step5Report({
     };
   });
 
+  const getAverageTariff = () => {
+    if (consumption.tariffCategory === 'commercial') {
+      switch (consumption.commercialTariff) {
+        case 'small': return 5.0;
+        case 'medium': return 6.0;
+        case 'large': return 7.0;
+        default: return 5.0;
+      }
+    } else {
+      const baseTariff = 4.32;
+      if (consumption.householdTariff === 'fixed') return baseTariff;
+      
+      const residentialProfile = [0.5, 0.4, 0.4, 0.4, 0.4, 0.5, 1.0, 2.0, 2.5, 2.0, 1.8, 1.8, 1.8, 1.8, 1.8, 1.9, 2.0, 2.5, 3.0, 3.5, 3.5, 3.0, 2.0, 1.0];
+      const commercialProfile = [0.8, 0.8, 0.8, 0.8, 0.8, 1.0, 2.0, 3.5, 4.5, 5.0, 5.5, 5.5, 5.5, 5.5, 5.5, 5.0, 4.5, 3.5, 2.0, 1.5, 1.0, 0.8, 0.8, 0.8];
+      const industrialProfile = [3.0, 3.0, 3.0, 3.0, 3.0, 4.0, 5.0, 6.0, 6.0, 6.5, 6.5, 6.5, 6.5, 6.5, 6.5, 6.0, 6.0, 5.0, 4.0, 4.0, 3.5, 3.0, 3.0, 3.0];
+      
+      let profile = consumption.customProfile;
+      if (consumption.profileType === 'residential') profile = residentialProfile;
+      else if (consumption.profileType === 'commercial') profile = commercialProfile;
+      else if (consumption.profileType === 'industrial') profile = industrialProfile;
+      
+      let totalWeight = 0;
+      let weightedTariffSum = 0;
+      
+      for (let hour = 0; hour < 24; hour++) {
+        const weight = profile[hour] || 1;
+        totalWeight += weight;
+        
+        let multiplier = 1;
+        if (consumption.householdTariff === 'two-zone') {
+          if (hour >= 23 || hour < 7) multiplier = 0.5;
+        } else if (consumption.householdTariff === 'three-zone') {
+          if (hour >= 23 || hour < 7) multiplier = 0.4;
+          else if ((hour >= 8 && hour < 11) || (hour >= 20 && hour < 22)) multiplier = 1.5;
+        }
+        
+        weightedTariffSum += baseTariff * multiplier * weight;
+      }
+      
+      return totalWeight > 0 ? weightedTariffSum / totalWeight : baseTariff;
+    }
+  };
+
+  const averageTariff = getAverageTariff();
+
   const totalGen = monthlyData.reduce((acc, curr) => acc + curr.solar + curr.wind + curr.hydro, 0);
   const totalCons = monthlyData.reduce((acc, curr) => acc + curr.consumption, 0);
   
   const autonomyPercent = Math.min(100, Math.round((totalGen / totalCons) * 100));
-  const savings = Math.round(Math.min(totalGen, totalCons) * 4.32);
+  const savings = Math.round(Math.min(totalGen, totalCons) * averageTariff);
   const co2Reduction = (totalGen * 0.4 / 1000).toFixed(1);
   
   const capex = (config.solar ? equipment.solarPanelsCount * (equipment.solarPanelPrice || 320) : 0) + 
@@ -108,32 +156,35 @@ export function Step5Report({
                 (config.hydro ? equipment.hydroCount * (equipment.hydroRunnerDiameter * 10000) : 0) + 
                 (config.battery ? equipment.battery * 400 : 0);
                 
+  const exchangeRate = 41.5;
+  const capexUAH = capex * exchangeRate;
+                
   const discountRate = 0.08;
   const projectLife = 20;
   const opexPercent = 0.02;
   const degradationFactor = 1 - (equipment.solarDegradation / 100);
   
-  let npvCost = capex;
+  let npvCost = capexUAH;
   let npvGen = 0;
   
   for (let year = 1; year <= projectLife; year++) {
     const annualGen = totalGen * Math.pow(degradationFactor, year - 1);
-    const annualOpex = capex * opexPercent;
+    const annualOpexUAH = capexUAH * opexPercent;
     
-    npvCost += annualOpex / Math.pow(1 + discountRate, year);
+    npvCost += annualOpexUAH / Math.pow(1 + discountRate, year);
     npvGen += annualGen / Math.pow(1 + discountRate, year);
   }
   
   const lcoe = npvGen > 0 ? (npvCost / npvGen).toFixed(2) : '0.00';
                 
   let paybackYears = 0;
-  let cumulativeCashFlow = -capex;
+  let cumulativeCashFlow = -capexUAH;
   
   for (let year = 1; year <= projectLife; year++) {
     const annualGen = totalGen * Math.pow(degradationFactor, year - 1);
-    const annualSavings = Math.min(annualGen, totalCons) * 4.32;
-    const annualOpex = capex * opexPercent;
-    const netCashFlow = annualSavings - annualOpex;
+    const annualSavings = Math.min(annualGen, totalCons) * averageTariff;
+    const annualOpexUAH = capexUAH * opexPercent;
+    const netCashFlow = annualSavings - annualOpexUAH;
     
     cumulativeCashFlow += netCashFlow;
     
@@ -145,14 +196,18 @@ export function Step5Report({
   
   const payback = formatPayback(paybackYears);
 
+  const getFormattedDate = () => {
+    const now = new Date();
+    const pad = (n: number) => n.toString().padStart(2, '0');
+    return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}_${pad(now.getHours())}-${pad(now.getMinutes())}`;
+  };
+
   const handleDownloadPDF = async () => {
     if (!reportRef.current) return;
     
     try {
       setIsGeneratingPDF(true);
       
-      // html-to-image works better with elements that are actually in the DOM and visible
-      // but positioned off-screen
       const dataUrl = await htmlToImage.toPng(reportRef.current, {
         quality: 1.0,
         pixelRatio: 2,
@@ -177,7 +232,31 @@ export function Step5Report({
         heightLeft -= pageHeight;
       }
       
-      pdf.save('EnergyMix_Report.pdf');
+      const fileName = `EnergyMix_Report_${getFormattedDate()}.pdf`;
+      let savedWithPicker = false;
+      
+      if ('showSaveFilePicker' in window && window.self === window.top) {
+        try {
+          const handle = await (window as any).showSaveFilePicker({
+            suggestedName: fileName,
+            types: [{
+              description: 'PDF Document',
+              accept: { 'application/pdf': ['.pdf'] },
+            }],
+          });
+          const writable = await handle.createWritable();
+          await writable.write(pdf.output('blob'));
+          await writable.close();
+          savedWithPicker = true;
+        } catch (err: any) {
+          if (err.name === 'AbortError') return;
+          console.warn('showSaveFilePicker failed, falling back:', err);
+        }
+      }
+      
+      if (!savedWithPicker) {
+        pdf.save(fileName);
+      }
     } catch (error) {
       console.error('Error generating PDF:', error);
       alert('Помилка при генерації PDF. Спробуйте ще раз.');
@@ -186,7 +265,7 @@ export function Step5Report({
     }
   };
 
-  const handleDownloadJSON = () => {
+  const handleDownloadJSON = async () => {
     const data = {
       config,
       location,
@@ -196,16 +275,40 @@ export function Step5Report({
     };
     
     const jsonString = JSON.stringify(data, null, 2);
-    const blob = new Blob([jsonString], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
+    const fileName = `EnergyMix_Project_${getFormattedDate()}.json`;
+    let savedWithPicker = false;
     
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = "EnergyMix_Project.json";
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+    if ('showSaveFilePicker' in window && window.self === window.top) {
+      try {
+        const handle = await (window as any).showSaveFilePicker({
+          suggestedName: fileName,
+          types: [{
+            description: 'JSON File',
+            accept: { 'application/json': ['.json'] },
+          }],
+        });
+        const writable = await handle.createWritable();
+        await writable.write(jsonString);
+        await writable.close();
+        savedWithPicker = true;
+      } catch (err: any) {
+        if (err.name === 'AbortError') return;
+        console.warn('showSaveFilePicker failed, falling back:', err);
+      }
+    }
+    
+    if (!savedWithPicker) {
+      const blob = new Blob([jsonString], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    }
   };
 
   return (
@@ -226,7 +329,6 @@ export function Step5Report({
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* PDF Export Card */}
         <div className="bg-white dark:bg-slate-800/50 rounded-3xl p-8 border border-slate-200 dark:border-slate-700/50 shadow-lg backdrop-blur-xl relative overflow-hidden group hover:border-emerald-500/50 transition-colors">
           <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 rounded-full blur-3xl -mr-10 -mt-10 transition-opacity group-hover:opacity-100 opacity-50" />
           
@@ -251,7 +353,6 @@ export function Step5Report({
           </div>
         </div>
 
-        {/* Data Export Card */}
         <div className="bg-white dark:bg-slate-800/50 rounded-3xl p-8 border border-slate-200 dark:border-slate-700/50 shadow-lg backdrop-blur-xl relative overflow-hidden group hover:border-blue-500/50 transition-colors">
           <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/10 rounded-full blur-3xl -mr-10 -mt-10 transition-opacity group-hover:opacity-100 opacity-50" />
           
@@ -276,23 +377,11 @@ export function Step5Report({
         </div>
       </div>
 
-      {/* Share Actions */}
-      <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-8 border-t border-slate-200 dark:border-slate-800">
-        <button className="flex items-center gap-2 px-6 py-3 rounded-xl font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
-          <Share2 className="w-5 h-5" />
-          Поділитися посиланням
-        </button>
-        <button className="flex items-center gap-2 px-6 py-3 rounded-xl font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
-          <Mail className="w-5 h-5" />
-          Відправити на email
-        </button>
-      </div>
 
-      {/* Hidden Report Template for PDF Generation */}
+
       <div style={{ position: 'absolute', left: '-9999px', top: '-9999px', overflow: 'hidden' }}>
         <div ref={reportRef} style={{ backgroundColor: '#ffffff', color: '#0f172a', width: '800px', fontFamily: 'sans-serif' }}>
           
-          {/* PAGE 1 */}
           <div style={{ width: '800px', minHeight: '1131.4px', padding: '48px', boxSizing: 'border-box', position: 'relative' }}>
             <div style={{ borderBottom: '2px solid #10b981', paddingBottom: '24px', marginBottom: '32px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
               <div>
@@ -393,7 +482,6 @@ export function Step5Report({
           </div>
         </div>
 
-        {/* PAGE 2 */}
         <div style={{ width: '800px', minHeight: '1131.4px', padding: '48px', boxSizing: 'border-box', position: 'relative', backgroundColor: '#ffffff' }}>
           <div style={{ marginBottom: '32px' }}>
             <h2 style={{ fontSize: '24px', fontWeight: 'bold', marginBottom: '16px', color: '#059669' }}>4. Результати розрахунку</h2>

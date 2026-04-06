@@ -109,7 +109,6 @@ export function Step2Equipment({
             max={200}
             step={1}
             mainLabel="Кількість панелей"
-            description="Загальна кількість сонячних панелей у вашій системі. Загальна потужність розраховується автоматично."
             itemCost={equipment.solarPanelPrice || 320}
             totalCost={equipment.solarPanelsCount * (equipment.solarPanelPrice || 320)}
             parameters={[
@@ -176,7 +175,6 @@ export function Step2Equipment({
             max={10}
             step={1}
             mainLabel="Кількість турбін"
-            description="Кількість вітрогенераторів у вашій системі."
             itemCost={equipment.windPrice || 2000}
             totalCost={equipment.windCount * (equipment.windPrice || 2000)}
             advancedFields={[
@@ -229,7 +227,6 @@ export function Step2Equipment({
             max={5}
             step={1}
             mainLabel="Кількість турбін"
-            description="Кількість гідротурбін у вашій системі."
             itemCost={equipment.hydroPrice || 5000}
             totalCost={equipment.hydroCount * (equipment.hydroPrice || 5000)}
             advancedFields={[
@@ -286,7 +283,6 @@ export function Step2Equipment({
             max={40}
             step={1}
             mainLabel="Кількість модулів"
-            description="Кількість акумуляторних блоків у системі."
             itemCost={equipment.batteryPrice || 2000}
             totalCost={equipment.batteryModulesCount * (equipment.batteryPrice || 2000)}
             advancedFields={[
@@ -386,7 +382,6 @@ function ConfigCard({
   setValue, 
   unit, 
   max,
-  description,
   mainLabel = "Потужність",
   step = 1,
   parameters = [],
@@ -402,7 +397,6 @@ function ConfigCard({
   setValue: (v: number) => void; 
   unit: string; 
   max: number;
-  description: string;
   mainLabel?: string;
   step?: number;
   itemCost?: number;
@@ -478,13 +472,6 @@ function ConfigCard({
             <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
               {mainLabel}
             </label>
-            <div className="group relative">
-              <Info className="w-3.5 h-3.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-help" />
-              <div className="absolute left-0 bottom-full mb-2 w-56 p-2.5 text-[11px] leading-normal text-white bg-slate-900 dark:bg-slate-800 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 shadow-xl border border-slate-700">
-                {description}
-                <div className="absolute top-full left-2 -mt-1 border-4 border-transparent border-t-slate-900 dark:border-t-slate-800"></div>
-              </div>
-            </div>
           </div>
           <div className="flex items-baseline gap-1">
             <input 
